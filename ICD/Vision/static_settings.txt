@@ -1,0 +1,1 @@
+{'red_clip': [0, 0, 0, 17, 255, 255], 'target': 3, 'green_ROI': 160, 'max_area': 3800, 'min_intersect_area': 200, 'green_clip': [35, 90, 42, 70, 255, 185]}

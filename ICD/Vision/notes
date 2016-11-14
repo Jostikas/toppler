@@ -1,0 +1,6 @@
+qv4l2 - app for messing with the driver.
+Set exposure higher than AUTO
+Trade off Gain to trade off saturation for value
+Home: EXP=200, GAIN=24
+Warm: EXP 255, GAIN as needed
+PS3Eye FOV: 1.18*0.89 camera heights.
