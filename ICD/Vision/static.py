@@ -1,5 +1,8 @@
 import numpy as np
 from ast import literal_eval
+import multiprocessing as mp
+import logging
+loglevel = logging.INFO
 
 import cv2
 
@@ -17,23 +20,32 @@ calibrate_more = True
 
 
 class StaticSettingsGUI(object):
+    """This really should be subprocessed, but I have a feeling Bad Things Will Happen with GUI then."""
 
+    #TODO: Check if Bad Things will happen.
     def __init__(self, static_proc):
         super(StaticSettingsGUI, self).__init__()
-        id = static_proc.field.id
-        settings = static_proc.settings
+        self.id = static_proc.field.id
         disp_name = 'Static {}'.format(id)
         settings_name = disp_name + ' settings'
         self.static_proc = static_proc
         self.disp_name = disp_name
         self.settings_name = settings_name
-        cv2.namedWindow(disp_name, True)
-        cv2.moveWindow(disp_name, 1920 / 3 * (id % 3), 30)
-        cv2.namedWindow(settings_name, True)
-        cv2.moveWindow(settings_name, 1920 / 3 * (id % 3), 30+700)
+
         self.color_selector = 0  # 0 green, 1 red
         self.ignore_trackbar_change = False
-        self.img = np.empty(self.static_proc.shape, dtype=np.uint8)
+        self.imgbuffer = mp.Array('B', 480 * 640 * 3)
+        self.imgbuffer2 = mp.Array('B', 480 * 640 * 3)
+
+    def open(self):
+        id = self.id
+        settings = self.static_proc.settings
+        cv2.namedWindow(self.disp_name, True)
+        cv2.moveWindow(self.disp_name, 1920 / 3 * (id % 3), 30)
+        cv2.namedWindow(self.settings_name, True)
+        cv2.moveWindow(self.settings_name, 1920 / 3 * (id % 3), 30 + 700)
+        if calibrate_more and self.static_proc.calibrate:
+            cv2.namedWindow('gabor', True)
 
         cv2.createTrackbar('RG', self.settings_name, self.color_selector, 1, self.color_selector_callback)
         cv2.createTrackbar('Hue_min', self.settings_name, settings['green_clip'][0], 360, self.update_cliprange)
@@ -73,7 +85,11 @@ class StaticSettingsGUI(object):
         self.static_proc.settings['green_ROI'] = val
 
     def update(self):
-        cv2.imshow(self.disp_name, self.img)
+        img = np.reshape(np.frombuffer(self.imgbuffer.get_obj(), dtype=np.uint8), self.static_proc.shape)
+        cv2.imshow(self.disp_name, img)
+        if calibrate_more:
+            img = np.reshape(np.frombuffer(self.imgbuffer2.get_obj(), dtype=np.uint8), self.static_proc.shape)
+            cv2.imshow('ROI', img)
 
     def close(self):
         self.store_settings()
@@ -102,22 +118,29 @@ class StaticProcessor(object):
                         RAvgPoint((600, 600)),
                         RAvgPoint((40, 600))
                         ]
+        self.val = mp.Value('I')
         # The center is duplicate information, but one that is available freely.
         # Also, it's needed for ROI processing.
         self.center = RAvgPoint((320, 240))
         self.read_settings(settingsfile)
+        self._reset_flag = False  # Flag that the data structures should be reset before processing next frame.
+        self.proc = mp.Process(target=lambda : None)
+        self.proc.start()  # Should terminate immediately.
         self.calibrate = False
-        self.toggle_GUI()  #Uncomment if you want the calibration screen to immediately appear.
+        self.GUI = StaticSettingsGUI(self)
+        # self.toggle_GUI()  #Uncomment if you want the calibration screen to immediately appear.
+
+    def get_corners(self):
+        return tuple(self.corners)
 
 
     def toggle_GUI(self):
         if self.calibrate:
             self.calibrate = False
             self.GUI.close()
-            del self.GUI
         else:
             self.calibrate = True
-            self.GUI = StaticSettingsGUI(self)
+            self.GUI.open()
 
     def read_settings(self, settingsfile):
         with open(settingsfile, 'r') as f:
@@ -147,6 +170,10 @@ class StaticProcessor(object):
 
     def reset(self):
         """Reset averaging."""
+        self._reset_flag = True
+
+    def _reset(self):
+        """Reset averaging."""
         self.counter = 0
         self.accumulator = np.zeros(self.shape, np.float32)
         for point in self.corners:
@@ -154,6 +181,7 @@ class StaticProcessor(object):
             point[1].reset()
         self.center[0].reset()
         self.center[1].reset()
+        self._reset_flag = False
 
     def update_center(self, point):
         self.center.update(point)
@@ -163,13 +191,30 @@ class StaticProcessor(object):
     def update_corners(self, points):
         loc = ((0, 3), (1, 2))  # Used to match input points to corners
         for i in range(4):
-            j = loc[points[i][0] > self.center[0]][points[i][1] > self.center[1]]
-            self.corners[j].update(points[i])
+            point = points[i]
+            j = loc[point[0] > self.center[0]][point[1] > self.center[1]]
+            self.corners[j].update(point)
         if self.calibrate:  # Display the rectangle
             points = np.int0(points)
             cv2.drawContours(self.GUI.img, [points], 0, (255, 255, 0), 2)
             for point in self.corners:
-                draw_point(self.GUI.img, point, color= (0, 200, 200), thickness=2)
+                draw_point(self.GUI.img, point, color=(0, 200, 200), thickness=2)
+
+    def _run_process_static(self):
+        if self.proc.is_alive():
+            # Processing has taken way too long. Print a message and abandon current frame.
+            print('God Dammit Ryan!')
+        else: # The call to is_alive should've joined the zombie, but let's be sure.
+            # TODO: Add timeout before competiton, cause I sure as hell don't want the robot to randomly stop. Rather have the zombies.
+            self.proc.join(80)
+            if self.calibrate:
+                self.GUI.update()
+            if self._reset_flag:
+                self._reset()
+            cv2.setNumThreads(0)  # See https://github.com/opencv/opencv/issues/5150
+            self.proc = mp.Process(target=self.process_static, args=(self.accumulator,))
+            self.proc.daemon = True
+            self.proc.start()
 
     def accumulate_static(self, frame):
         """Accumulate frames for averaging for static analysis of the playing field.
@@ -181,34 +226,35 @@ class StaticProcessor(object):
         """
 
         self.counter += 1
-        cv2.accumulate(frame, self.accumulator)
+        cv2.accumulate(frame, self.accumulator)  # Is faster than uint16/uint8 ops in numpy
+        #self.accumulator += frame
 
         if not self.counter % self.avg:  # if avg samples have been collected
-            self.process_static(self.accumulator)
+            self._run_process_static()
             self.counter = 0
             self.accumulator = np.zeros(frame.shape, dtype=np.float32)
 
     def process_static(self, frame):
-        """Process the averaged image, update field.
-
-        :arg frame: The averaged frame, of type CV_32F.
+        """Process the summed image, update field.
+        :arg frame: The summed frame, of type CV_32F.
         :arg reset: Whether to reset the running average of field corners."""
-        frame = (frame // self.avg)  # type: np.ndarray
-        frame = frame.astype(np.uint8)
+        logger = mp.log_to_stderr()
+        logger.setLevel(loglevel)
+        cv2.setNumThreads(-1)  # See https://github.com/opencv/opencv/issues/5150
+        frame = cv2.convertScaleAbs(frame, alpha=0.1)  # type: np.ndarray
         if self.calibrate:  # Store input for debugging
-            self.GUI.img = frame.copy()
+            self.GUI.img = np.reshape(np.frombuffer(self.GUI.imgbuffer.get_obj(), dtype=np.uint8), self.shape)
+            self.GUI.img[:] = frame
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        cv2.cvtColor(frame, cv2.COLOR_BGR2HSV, frame)
+        cv2.cvtColor(frame, cv2.COLOR_BGR2HSV_FULL, frame)
 
-        self.find_field(gray)
+        self.find_field(frame[:,:,1])
         self.find_houses(frame, GREEN)
         self.find_houses(frame, RED)
-        if self.calibrate:
-            self.GUI.update()
 
     def find_field(self, gray):
-        img = cv2.medianBlur(gray, 7)
-        f_mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 7, 5)
+        img = cv2.medianBlur(gray, 3)
+        f_mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 7, 4)
         cv2.morphologyEx(f_mask, cv2.MORPH_OPEN, None, f_mask, iterations=2)
 
         if self.calibrate:  # Contour search is destructive, so have to show it here or copy stuff.
@@ -239,8 +285,8 @@ class StaticProcessor(object):
                 :return N, labels, stats, centroids: See output of connectedComponentsWithStats. labels is a CV_16U array.
                 """
         clip = self.settings['red_clip' if green_red else 'green_clip']
-        img = cv2.medianBlur(hsv, 5)
-        mask = cv2.inRange(img, np.array(clip[0:3]), np.array(clip[3:6]))
+        #img = cv2.medianBlur(hsv, 5)
+        mask = cv2.inRange(hsv, np.array(clip[0:3]), np.array(clip[3:6]))
         cv2.erode(mask, None, mask, iterations=3)
         cv2.medianBlur(mask, 3, mask)
         cv2.dilate(mask, None, mask, None, 3)
@@ -298,16 +344,18 @@ class StaticProcessor(object):
         # Calculate the necessary transform for ROI isolation.
         x1, y1 = stats[idx, cv2.CC_STAT_LEFT], stats[idx, cv2.CC_STAT_TOP]
         x2, y2 = x1 + stats[idx, cv2.CC_STAT_WIDTH], y1 + stats[idx, cv2.CC_STAT_HEIGHT]
-        xc, yc = (x2 - x1) // 2, (y2 - y1) // 2  # Got center of bounding box
+        x, y = (x1 + x2) // 2, (y1 + y2)//2  # Got center of bounding box
         dsize = int(1.5 * max(stats[idx, cv2.CC_STAT_WIDTH:cv2.CC_STAT_HEIGHT]))  # Should fit all rotations
         # rot = cv2.getRotationMatrix2D((xc, yc), RAvgPoint.angle(self.center, centroids[idx]), 1)
         rot = np.eye(3)
-        rot[0:2, 0:3] = cv2.getRotationMatrix2D((dsize / 2, dsize / 2),
-                                                RAvgPoint.angle(self.center, (x1+xc, y1+yc)) + 90, 1)
+        rot[0:2, 0:3] = cv2.getRotationMatrix2D((x, y),
+                                                RAvgPoint.angle(self.center, (x, y)) + 90, 1)
         tran = np.eye(3)
-        tran[0:2, 2] = ((dsize / 2 - xc), (dsize / 2 - yc))
-        mat = (np.dot(rot, tran))[0:2]
+        tran[0:2, 2] = ((dsize / 2 - x), (dsize / 2 - y))
+        mat = (np.dot(tran, rot))[0:2]
         window = x1, x2, y1, y2
+        if calibrate_more and self.calibrate:
+            draw_point(self.GUI.img, (x, y))
         return mat, window, dsize
 
     def ROI_analysis(self, hsv, ROIs, filt_labels, green_red):
@@ -318,47 +366,9 @@ class StaticProcessor(object):
         :arg filt_labels: labels that were determined to potentially be houses.
         :arg green_red: Whether we're looking for a green or a red house.
         """
-        # Debug window management
-        if calibrate_more:
-            pos = {'sigma': 5,
-                   'ksize': 21,
-                   'theta': 0,
-                   'lambd': 0,
-                   'gamma': 0,
-                   'psi': 0
-                   }
-            cv2.namedWindow('gabor', True)
-            cv2.createTrackbar('ksize', 'gabor', 1, 100, lambda x: pos.__setitem__('ksize', x))
-            cv2.createTrackbar('sigma', 'gabor', 1, 100, lambda x: pos.__setitem__('ksize', x))
-            cv2.createTrackbar('theta', 'gabor', 1, 100, lambda x: pos.__setitem__('ksize', x))
-            cv2.createTrackbar('lambd', 'gabor', 1, 100, lambda x: pos.__setitem__('ksize', x))
-            cv2.createTrackbar('gamma', 'gabor', 1, 100, lambda x: pos.__setitem__('ksize', x))
-            cv2.createTrackbar('psi', 'gabor', 1, 100, lambda x: pos.__setitem__('ksize', x))
-            img = np.zeros((640, 640, 3), dtype=np.uint8)
-            x = 0
-            y = 0
-            y_max = 0
-
-        N, labels, stats, centroids = ROIs
+        n, labels, stats, centroids = ROIs
         for idx in filt_labels:
-            # Find the transformation window
-            mat, (x1, x2, y1, y2), dsize = self._get_ROI_transform(stats, idx)
-            invmat = cv2.invertAffineTransform(mat) # needed to relate the extracted features into world-space.
-
-            snip = cv2.warpAffine(hsv[y1:y2, x1:x2], mat, (dsize, dsize))
-            # snip = cv2.warpAffine(hsv[labels == idx], mat, (dsize, dsize))
-            snip = cv2.cvtColor(snip, cv2.COLOR_HSV2BGR_FULL)
-            # snip = cv2.cvtColor(snip, cv2.COLOR_BGR2GRAY)
-            # if green_red == GREEN:
-            #     snip = snip[:,:,2]
-            #     thresh, snip = cv2.threshold(snip, self.settings['green_ROI'], 255, cv2.THRESH_BINARY)
-#            cv2.getGaborKernel(5, )
-            if calibrate_more:
-                y_max = max(y+dsize, y_max)
-                if x + dsize > 640:
-                    x = 0
-                    y = y_max
-                img[y:y+dsize, x:x+dsize] = snip
-                x += dsize
-        if calibrate_more:
-            cv2.imshow('{}'.format(('red' if green_red else 'green')), img)
+            x1, y1 = stats[idx, cv2.CC_STAT_LEFT] - 3, stats[idx, cv2.CC_STAT_TOP] -3
+            x2, y2 = x1 + stats[idx, cv2.CC_STAT_WIDTH] + 6, y1 + stats[idx, cv2.CC_STAT_HEIGHT] + 6
+            fname = './Vision/ROIS/{}{}.png'.format('R' if green_red else 'G', idx)
+            cv2.imwrite(fname, hsv[y1:y2, x1:x2] )

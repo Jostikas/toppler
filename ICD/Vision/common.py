@@ -1,20 +1,29 @@
 import cv2
 import numpy as np
 from functools import total_ordering
+import multiprocessing as mp
+import multiprocessing.sharedctypes as sct
 
 @total_ordering
 class RAvg(object):
-    """Keeps a running average"""
+    """Keeps a running average double in shared memory."""
 
     def __init__(self, value, alpha=0.1):
         super(RAvg, self).__init__()
-        self.value = value
+        self.obj = mp.Value('d')
+        self.obj.value = value
         self.alpha = alpha
-        self.counter = 0.  # Float because checking whether it should be updated or not will likely be more expensive
+
+        self.counter = mp.Value('d')  # Float because checking whether it should be updated or not will likely be more expensive
             # than just incrementing, and floats don't overflow.
+        self.counter.value = 0.
+
+    @property
+    def value(self):
+        return self.obj.value
 
     def __float__(self):
-        return float(self.value)
+        return self.value
 
     def __int__(self):
         return int(self.value)
@@ -31,12 +40,11 @@ class RAvg(object):
     def __repr__(self):
         return 'RAvg({})'.format(self.value)
 
-
-
     def update(self, value):
-        self.counter += 1
-        alpha = max(1.0/self.counter, self.alpha)
-        self.value = (1-alpha)*self.value + alpha*value
+        with self.counter.get_lock():
+            self.counter.value += 1.
+        alpha = max(1.0/self.counter.value, self.alpha)
+        self.obj.value = (1-alpha)*self.obj.value + alpha*value
 
     def reset(self):
         self.counter = 0
@@ -51,19 +59,22 @@ class RAvgPoint(object):
         self.point = []
         self.point.extend(RAvg(coord, alpha) for coord in point)
 
+    def __getitem__(self, item):
+        return self.point[item]
+
+    def __repr__(self):
+        return "RAvgPoint{}".format(self.point)
+
     def reset(self):
         for coord in self.point:
             coord.reset()
 
     def coords(self):
-        return tuple(float(val) for val in self.point)
+        return tuple(val.value for val in self.point)
 
     def update(self, point):
         for i, coord in enumerate(point):
             self.point[i].update(coord)
-
-    def __getitem__(self, item):
-        return self.point[item]
 
     @staticmethod
     def dist(p1, p2):
@@ -84,7 +95,8 @@ class Trig(object):
     pass
 
 def draw_point(img, point, target=True, coords=True, color=(0,0,0), radius=5, thickness=1):
-    point = tuple(int(ra.value) for ra in point)
+    if isinstance(point, RAvgPoint):
+        point = tuple(int(ra.value) for ra in point)
     cv2.circle(img, point, radius, color, thickness)
     if target:
         cv2.line(img, (point[0] - 2*radius, point[1]), (point[0] + 2*radius, point[1]), color, thickness)
