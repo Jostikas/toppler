@@ -18,7 +18,7 @@ class FrameProcessor(object):
     If possible, I'd rather not, then camera can keep timestep for other stuff too."""
     def __init__(self, shape, field, car):
         super(FrameProcessor, self).__init__()
-        self.static = StaticProcessor(field, shape)
+        self.static = StaticProcessor(field, shape, avg=30)
         #self.dynamic = DynamicProcessor(car, shape)
         self.show = {'raw': False, 'H': False, 'S': False, 'V': False}
         self.show_default_screens()

@@ -79,7 +79,10 @@ class RAvgPoint(object):
     @staticmethod
     def dist(p1, p2):
         a = np.array(p1.coords())
-        b = np.array(p2.coords())
+        if isinstance(p2, RAvgPoint):
+            b = np.array(p2.coords())
+        else:
+            b = np.array(p2)
         return np.linalg.norm(b-a)
 
     @staticmethod

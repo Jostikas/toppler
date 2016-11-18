@@ -45,17 +45,17 @@ dispatch = {'1': fproc.static.toggle_GUI,
 #     st = starttime
 #     for i in range(100):
 #         ret, frame = cam.read()
-#         proc.process_frame(frame)
+#         fproc.process_frame(frame)
 #         cv2.waitKey(1)
 #         t = time()
 #         frames.append(1/(t - starttime))
 #         starttime = t
 #     print(np.array(frames).astype(np.uint8))
 #     print(100/(time()-st))
-
+#
 # for i in range(10):
 #     ret, frame = cam.read()
-# cProfile.run('profile()',sort='tottime')
+# profile()
 
 while True:
     flag, frame = cam.read()

@@ -2,7 +2,10 @@ import numpy as np
 from ast import literal_eval
 import multiprocessing as mp
 import logging
+from os import removedirs, makedirs
 loglevel = logging.INFO
+from matplotlib import pyplot as plt
+import cProfile
 
 import cv2
 
@@ -16,6 +19,10 @@ default_settings = {'min_intersect_area': 200,
 GREEN = 0
 RED = 1
 calibrate_more = True
+
+h_cam_mm = 1420  # mm
+pixres = 1.18 * h_cam_mm / 640  # mm/px
+h_cam = h_cam_mm / pixres  # in pixel units for trigonometry
 
 
 
@@ -35,7 +42,7 @@ class StaticSettingsGUI(object):
         self.color_selector = 0  # 0 green, 1 red
         self.ignore_trackbar_change = False
         self.imgbuffer = mp.Array('B', 480 * 640 * 3)
-        self.imgbuffer2 = mp.Array('B', 480 * 640 * 3)
+        self.imgbuffer2 = mp.Array('B', 480 * 640)
 
     def open(self):
         id = self.id
@@ -44,7 +51,7 @@ class StaticSettingsGUI(object):
         cv2.moveWindow(self.disp_name, 1920 / 3 * (id % 3), 30)
         cv2.namedWindow(self.settings_name, True)
         cv2.moveWindow(self.settings_name, 1920 / 3 * (id % 3), 30 + 700)
-        if calibrate_more and self.static_proc.calibrate:
+        if calibrate_more:
             cv2.namedWindow('gabor', True)
 
         cv2.createTrackbar('RG', self.settings_name, self.color_selector, 1, self.color_selector_callback)
@@ -88,12 +95,13 @@ class StaticSettingsGUI(object):
         img = np.reshape(np.frombuffer(self.imgbuffer.get_obj(), dtype=np.uint8), self.static_proc.shape)
         cv2.imshow(self.disp_name, img)
         if calibrate_more:
-            img = np.reshape(np.frombuffer(self.imgbuffer2.get_obj(), dtype=np.uint8), self.static_proc.shape)
-            cv2.imshow('ROI', img)
+            img = np.reshape(np.frombuffer(self.imgbuffer2.get_obj(), dtype=np.uint8), self.static_proc.shape[:2])
+            cv2.imshow('gabor', img)
 
     def close(self):
         self.store_settings()
         cv2.destroyWindow(self.disp_name)
+        cv2.destroyWindow('gabor')
         cv2.destroyWindow(self.settings_name)
 
 
@@ -213,6 +221,7 @@ class StaticProcessor(object):
                 self._reset()
             cv2.setNumThreads(0)  # See https://github.com/opencv/opencv/issues/5150
             self.proc = mp.Process(target=self.process_static, args=(self.accumulator,))
+            # self.proc = mp.Process(target=self.tester, args=(self.accumulator,))
             self.proc.daemon = True
             self.proc.start()
 
@@ -234,6 +243,9 @@ class StaticProcessor(object):
             self.counter = 0
             self.accumulator = np.zeros(frame.shape, dtype=np.float32)
 
+    def tester(self, frame):
+        cProfile.runctx('self.process_static(frame)', globals(), locals(), sort='tottime')
+
     def process_static(self, frame):
         """Process the summed image, update field.
         :arg frame: The summed frame, of type CV_32F.
@@ -241,12 +253,16 @@ class StaticProcessor(object):
         logger = mp.log_to_stderr()
         logger.setLevel(loglevel)
         cv2.setNumThreads(-1)  # See https://github.com/opencv/opencv/issues/5150
-        frame = cv2.convertScaleAbs(frame, alpha=0.1)  # type: np.ndarray
+        frame = cv2.convertScaleAbs(frame, alpha=1.0 / self.avg)  # type: np.ndarray
         if self.calibrate:  # Store input for debugging
             self.GUI.img = np.reshape(np.frombuffer(self.GUI.imgbuffer.get_obj(), dtype=np.uint8), self.shape)
             self.GUI.img[:] = frame
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            if calibrate_more:
+                self.GUI.img2 = np.reshape(np.frombuffer(self.GUI.imgbuffer2.get_obj(), dtype=np.uint8), self.shape[:2])
+        # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         cv2.cvtColor(frame, cv2.COLOR_BGR2HSV_FULL, frame)
+        if self.calibrate:
+            self.GUI.img2[:] = frame[:, :, 0]
 
         self.find_field(frame[:,:,1])
         self.find_houses(frame, GREEN)
@@ -254,7 +270,7 @@ class StaticProcessor(object):
 
     def find_field(self, gray):
         img = cv2.medianBlur(gray, 3)
-        f_mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 7, 4)
+        f_mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 7, 5)
         cv2.morphologyEx(f_mask, cv2.MORPH_OPEN, None, f_mask, iterations=2)
 
         if self.calibrate:  # Contour search is destructive, so have to show it here or copy stuff.
@@ -293,7 +309,9 @@ class StaticProcessor(object):
         ROIs = cv2.connectedComponentsWithStats(mask, ltype=cv2.CV_16U)
         if self.calibrate:
             self.GUI.img[mask > 0] = (0, 0, 255) if green_red else (0, 255, 0)  # output the mask
+            pass
         return ROIs
+
 
     def filter_ROIs(self, ROIs):
         """Filter ROIs based on location and area.
@@ -355,7 +373,8 @@ class StaticProcessor(object):
         mat = (np.dot(tran, rot))[0:2]
         window = x1, x2, y1, y2
         if calibrate_more and self.calibrate:
-            draw_point(self.GUI.img, (x, y))
+            # draw_point(self.GUI.img, (x, y))
+            pass
         return mat, window, dsize
 
     def ROI_analysis(self, hsv, ROIs, filt_labels, green_red):
@@ -367,8 +386,26 @@ class StaticProcessor(object):
         :arg green_red: Whether we're looking for a green or a red house.
         """
         n, labels, stats, centroids = ROIs
+        houses = []
         for idx in filt_labels:
-            x1, y1 = stats[idx, cv2.CC_STAT_LEFT] - 3, stats[idx, cv2.CC_STAT_TOP] -3
-            x2, y2 = x1 + stats[idx, cv2.CC_STAT_WIDTH] + 6, y1 + stats[idx, cv2.CC_STAT_HEIGHT] + 6
-            fname = './Vision/ROIS/{}{}.png'.format('R' if green_red else 'G', idx)
-            cv2.imwrite(fname, hsv[y1:y2, x1:x2] )
+            # TODO: solve it without rotating.
+            # TODO: get other parameter estimation working.
+            mat, window, dsize = self._get_ROI_transform(stats, idx)
+            invmat = cv2.invertAffineTransform(mat)
+            roi = ((labels == idx) * 255).astype(np.uint8)
+            rotated = cv2.warpAffine(roi, mat, (dsize, dsize))
+            box = cv2.boundingRect(rotated)
+            x, y, w, h = box
+            dist = RAvgPoint.dist(self.center, centroids[idx])  # Centroid distance from center in pixels
+            cx = x + w / 2.
+            # Approximate the base center y coordinate by measuring from the bottom outward by
+            # min(h/2 - h/2*tan(alpha), w/2)
+            cy = y + h - min(h / 2 - h / 2 * dist / h_cam, w / 2)
+
+            # Convert back to camera coordinates
+            c = np.array((cx, cy, 1))
+            c_cam = np.dot(invmat, c)[0:2]
+            houses.append((idx, c_cam[0], c_cam[1]))
+            if self.calibrate:
+                draw_point(self.GUI.img, tuple(np.int0(c_cam)))
+        return np.array(houses)
