@@ -1,0 +1,20 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Atmel Studio Solution File, Format Version 11.00
+Project("{54F91283-7BC4-4236-8FF9-10F437C3AD48}") = "coilgun-main-board", "coilgun-main-board.cproj", "{03373849-8245-4881-9C21-3B5B3DE2AE13}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|AVR = Debug|AVR
+		Release|AVR = Release|AVR
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{03373849-8245-4881-9C21-3B5B3DE2AE13}.Debug|AVR.ActiveCfg = Debug|AVR
+		{03373849-8245-4881-9C21-3B5B3DE2AE13}.Debug|AVR.Build.0 = Debug|AVR
+		{03373849-8245-4881-9C21-3B5B3DE2AE13}.Release|AVR.ActiveCfg = Release|AVR
+		{03373849-8245-4881-9C21-3B5B3DE2AE13}.Release|AVR.Build.0 = Release|AVR
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
