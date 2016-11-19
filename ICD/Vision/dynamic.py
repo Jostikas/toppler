@@ -1,6 +1,5 @@
 import cv2.aruco as aruco
 
-aruco.
 
 class DynamicProcessor(object):
     """Processes frames for car detection and potential other moving stuff."""
