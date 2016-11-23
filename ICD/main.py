@@ -1,16 +1,18 @@
 from __future__ import print_function
-from Vision.vision import FrameProcessor
+from Vision.vision import *  # FrameProcessor, FRAME_H, FRAME_W, FPS
 from Logic.field import Field
 from Logic.car import Car
 import cv2
 import numpy as np
 from Vision.common import RAvg
 from time import time
+from constants import *
+
 
 cam = cv2.VideoCapture(0)
-cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-cam.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-cam.set(cv2.CAP_PROP_FPS, 60)
+cam.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_H)
+cam.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_W)
+cam.set(cv2.CAP_PROP_FPS, FPS)
 
 cv2.namedWindow('Main', True)
 mainpic = np.full((300,300), 255, dtype=np.uint8)
@@ -29,7 +31,7 @@ cv2.imshow('Main', mainpic)
 
 field = Field(0)
 car = Car()
-fproc = FrameProcessor((480, 640, 3), field, car)
+fproc = FrameProcessor((FRAME_H, FRAME_W, 3), field, car)
 
 dispatch = {'1': fproc.static.toggle_GUI,
             'r': lambda : fproc.toggle_screen('raw'),

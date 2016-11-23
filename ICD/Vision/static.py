@@ -9,7 +9,7 @@ import cProfile
 
 import cv2
 
-from common import RAvgPoint, largest_contour, draw_point
+from common import *
 
 default_settings = {'min_intersect_area': 200,
                     'red_clip': [0, 169, 134, 17, 255, 255],
@@ -21,7 +21,7 @@ RED = 1
 calibrate_more = True
 
 h_cam_mm = 1420  # mm
-pixres = 1.18 * h_cam_mm / 640  # mm/px
+pixres = 1.18 * h_cam_mm / FRAME_W  # mm/px
 h_cam = h_cam_mm / pixres  # in pixel units for trigonometry
 
 
@@ -41,8 +41,8 @@ class StaticSettingsGUI(object):
 
         self.color_selector = 0  # 0 green, 1 red
         self.ignore_trackbar_change = False
-        self.imgbuffer = mp.Array('B', 480 * 640 * 3)
-        self.imgbuffer2 = mp.Array('B', 480 * 640)
+        self.imgbuffer = mp.Array('B', np.prod(self.static_proc.shape))
+        self.imgbuffer2 = mp.Array('B', np.prod(self.static_proc.shape[:2]))
 
     def open(self):
         id = self.id
@@ -61,7 +61,10 @@ class StaticSettingsGUI(object):
         cv2.createTrackbar('Sat_max', self.settings_name, settings['green_clip'][4], 255, self.update_cliprange)
         cv2.createTrackbar('Val_min', self.settings_name, settings['green_clip'][2], 255, self.update_cliprange)
         cv2.createTrackbar('Val_max', self.settings_name, settings['green_clip'][5], 255, self.update_cliprange)
-        cv2.createTrackbar('ROI Thresh', self.settings_name, settings['green_ROI'], 255, self.update_ROI_thresh)
+        cv2.createTrackbar('rho', self.settings_name, settings['rho'], 600, self.update_hough)
+        cv2.createTrackbar('theta', self.settings_name, settings['theta'], 360, self.update_hough)
+        cv2.createTrackbar('Htres', self.settings_name, settings['Htres'], 255, self.update_hough)
+
 
     def store_settings(self):
         with open(self.static_proc.settingsfile, 'w') as f:
@@ -88,6 +91,11 @@ class StaticSettingsGUI(object):
             else:
                 self.static_proc.settings['green_clip'][val] = cv2.getTrackbarPos(key, self.settings_name)
 
+    def update_hough(self, _):
+        sliders = ['rho', 'theta', 'Htres']
+        for slider in sliders:
+            self.static_proc.settings[slider] = cv2.getTrackbarPos(slider, self.settings_name)
+
     def update_ROI_thresh(self, val):
         self.static_proc.settings['green_ROI'] = val
 
@@ -106,8 +114,7 @@ class StaticSettingsGUI(object):
 
 
 class StaticProcessor(object):
-
-    def __init__(self, field, shape=(480,640,3), settingsfile='Vision/static_settings.txt', avg=10):
+    def __init__(self, field, shape=(FRAME_H, FRAME_W, 3), settingsfile='Vision/static_settings.txt', avg=10):
         """Processes the frames to detect (quasi)static features in the scene.
 
         :arg field: a Field instance to apply the data to.
@@ -264,7 +271,7 @@ class StaticProcessor(object):
         if self.calibrate:
             self.GUI.img2[:] = frame[:, :, 0]
 
-        self.find_field(frame[:,:,1])
+        self.find_field2(frame[:, :, 1])
         self.find_houses(frame, GREEN)
         self.find_houses(frame, RED)
 
@@ -275,6 +282,33 @@ class StaticProcessor(object):
 
         if self.calibrate:  # Contour search is destructive, so have to show it here or copy stuff.
             self.GUI.img[f_mask > 0] = [255, 255, 255]
+
+        _, contours, hier = cv2.findContours(f_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        field_box = cv2.minAreaRect(contours[largest_contour(contours)])
+        self.update_center(field_box[0])
+        self.update_corners(cv2.boxPoints(field_box))
+
+    def find_field2(self, gray):
+        img = cv2.medianBlur(gray, 3)
+        f_mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 7, 5)
+        lines = cv2.HoughLines(f_mask, self.settings['rho'] + 1, self.settings['theta'] * np.pi / 180 + 0.00001,
+                               self.settings['Htres'])
+
+        if self.calibrate:  # Contour search is destructive, so have to show it here or copy stuff.
+            self.GUI.img[f_mask > 0] = [255, 255, 255]
+            self.GUI.img[f_mask == 0] = [0, 0, 0]
+            for line in lines:
+                rho, theta = np.ravel(line)
+                a = np.cos(theta)
+                b = np.sin(theta)
+                x0 = a * rho
+                y0 = b * rho
+                x1 = int(x0 + 1000 * (-b))
+                y1 = int(y0 + 1000 * (a))
+                x2 = int(x0 - 1000 * (-b))
+                y2 = int(y0 - 1000 * (a))
+                cv2.line(self.GUI.img, (x1, y1), (x2, y2), (255, 0, 0), 2)
+
 
         _, contours, hier = cv2.findContours(f_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         field_box = cv2.minAreaRect(contours[largest_contour(contours)])

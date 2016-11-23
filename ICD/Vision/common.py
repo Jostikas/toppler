@@ -4,6 +4,10 @@ from functools import total_ordering
 import multiprocessing as mp
 import multiprocessing.sharedctypes as sct
 
+FRAME_W = 800
+FRAME_H = 448
+FPS = 30
+
 @total_ordering
 class RAvg(object):
     """Keeps a running average double in shared memory."""
