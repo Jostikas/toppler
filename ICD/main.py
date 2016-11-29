@@ -1,17 +1,18 @@
 from __future__ import print_function
-from Vision.vision import *  # FrameProcessor, FRAME_H, FRAME_W, FPS
+from Vision.vision import FrameProcessor
+from Vision.common import FRAME_H, FRAME_W, FPS
 from Logic.field import Field
 from Logic.car import Car
 import cv2
 import numpy as np
 from Vision.common import RAvg
 from time import time
-from constants import *
 
 
 cam = cv2.VideoCapture(0)
 cam.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_H)
 cam.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_W)
+
 cam.set(cv2.CAP_PROP_FPS, FPS)
 
 cv2.namedWindow('Main', True)

@@ -1,7 +1,7 @@
 import cv2
 
-logi = cv2.VideoCapture(0)
-pseye = cv2.VideoCapture(1)
+logi = cv2.VideoCapture(1)
+pseye = cv2.VideoCapture(2)
 
 pseye.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
 pseye.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)

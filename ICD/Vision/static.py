@@ -6,6 +6,7 @@ from os import removedirs, makedirs
 loglevel = logging.INFO
 from matplotlib import pyplot as plt
 import cProfile
+import math
 
 import cv2
 
@@ -130,8 +131,8 @@ class StaticProcessor(object):
         self.accumulator = np.zeros(shape, dtype=np.float32)
         self.corners = [RAvgPoint((40, 40)),
                         RAvgPoint((600, 40)),
-                        RAvgPoint((600, 600)),
-                        RAvgPoint((40, 600))
+                        RAvgPoint((600, 400)),
+                        RAvgPoint((40, 400))
                         ]
         self.val = mp.Value('I')
         # The center is duplicate information, but one that is available freely.
@@ -205,15 +206,20 @@ class StaticProcessor(object):
 
     def update_corners(self, points):
         loc = ((0, 3), (1, 2))  # Used to match input points to corners
-        for i in range(4):
-            point = points[i]
+        for point in points:
             j = loc[point[0] > self.center[0]][point[1] > self.center[1]]
             self.corners[j].update(point)
+        # Update centerpoint
+        x, y = 0, 0
+        for corner in self.get_corners():
+            x += corner[0].value
+            y += corner[1].value
+        self.update_center((x * 0.25, y * 0.25))
         if self.calibrate:  # Display the rectangle
-            points = np.int0(points)
-            cv2.drawContours(self.GUI.img, [points], 0, (255, 255, 0), 2)
             for point in self.corners:
                 draw_point(self.GUI.img, point, color=(0, 200, 200), thickness=2)
+            draw_point(self.GUI.img, self.center, color=(0, 200, 200), thickness=2)
+
 
     def _run_process_static(self):
         if self.proc.is_alive():
@@ -271,32 +277,59 @@ class StaticProcessor(object):
         if self.calibrate:
             self.GUI.img2[:] = frame[:, :, 0]
 
-        self.find_field2(frame[:, :, 1])
-        self.find_houses(frame, GREEN)
-        self.find_houses(frame, RED)
+        self.find_field(frame[:, :, 2])
+        houses = self.find_houses(frame, GREEN)
+        np.append(houses, self.find_houses(frame, RED), axis=0)
+        house_coords = self.perspect(houses)
+
+    # def find_field(self, gray):
+    #     img = cv2.medianBlur(gray, 3)
+    #     f_mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 7, 5)
+    #     cv2.morphologyEx(f_mask, cv2.MORPH_OPEN, None, f_mask, iterations=2)
+    #
+    #     if self.calibrate:  # Contour search is destructive, so have to show it here or copy stuff.
+    #         self.GUI.img[f_mask > 0] = [255, 255, 255]
+    #
+    #     _, contours, hier = cv2.findContours(f_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    #     field_box = cv2.minAreaRect(contours[largest_contour(contours)])
+    #     self.update_center(field_box[0])
+    #     self.update_corners(cv2.boxPoints(field_box))
 
     def find_field(self, gray):
         img = cv2.medianBlur(gray, 3)
-        f_mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 7, 5)
-        cv2.morphologyEx(f_mask, cv2.MORPH_OPEN, None, f_mask, iterations=2)
-
-        if self.calibrate:  # Contour search is destructive, so have to show it here or copy stuff.
-            self.GUI.img[f_mask > 0] = [255, 255, 255]
-
-        _, contours, hier = cv2.findContours(f_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        field_box = cv2.minAreaRect(contours[largest_contour(contours)])
-        self.update_center(field_box[0])
-        self.update_corners(cv2.boxPoints(field_box))
-
-    def find_field2(self, gray):
-        img = cv2.medianBlur(gray, 3)
-        f_mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 7, 5)
-        lines = cv2.HoughLines(f_mask, self.settings['rho'] + 1, self.settings['theta'] * np.pi / 180 + 0.00001,
-                               self.settings['Htres'])
+        # f_mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 7, 5)
+        thresh, f_mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        f_mask = cv2.Laplacian(f_mask, cv2.CV_8U, f_mask, 5)
+        lines = cv2.HoughLines(f_mask, self.settings['rho'] + 1, self.settings['theta'] * np.pi / 180 + 0.01,
+                               self.settings['Htres'], srn=5, stn=5)
+        #    (r1 * sin(t2) - r2 * sin(t1)) / (cos(t1) * sin(t2) - cos(t2) * sin(t1))
+        #
+        #   -(r1 * cos(t2) - r2 * cos(t1)) / (cos(t1) * sin(t2) - cos(t2) * sin(t1))
+        # Sort lines horizontal or vertical
+        points = []
+        if lines is not None:
+            h, v = [], []
+            for line in lines:
+                if np.pi * 0.25 < line[0, 1] < np.pi * 0.75:
+                    h.append(line)
+                else:
+                    v.append(line)
+            for hline in h:
+                r1, s1, c1 = hline[0, 0], math.sin(hline[0, 1]), math.cos(hline[0, 1])
+                for vline in v:
+                    r2, s2, c2 = vline[0, 0], math.sin(vline[0, 1]), math.cos(vline[0, 1])
+                    x = (r1 * s2 - r2 * s1) / (c1 * s2 - c2 * s1)
+                    y = -(r1 * c2 - r2 * c1) / (c1 * s2 - c2 * s1)
+                    points.append((x, y))
+        if points:
+            self.update_corners(points)
+        else:
+            print("Corners not detected!")
 
         if self.calibrate:  # Contour search is destructive, so have to show it here or copy stuff.
             self.GUI.img[f_mask > 0] = [255, 255, 255]
             self.GUI.img[f_mask == 0] = [0, 0, 0]
+            self.GUI.img2[:] = f_mask
             for line in lines:
                 rho, theta = np.ravel(line)
                 a = np.cos(theta)
@@ -310,12 +343,6 @@ class StaticProcessor(object):
                 cv2.line(self.GUI.img, (x1, y1), (x2, y2), (255, 0, 0), 2)
 
 
-        _, contours, hier = cv2.findContours(f_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        field_box = cv2.minAreaRect(contours[largest_contour(contours)])
-        self.update_center(field_box[0])
-        self.update_corners(cv2.boxPoints(field_box))
-
-
     def find_houses(self, hsv, green_red):
         """Segment scene by color to find red or green houses.
 
@@ -325,6 +352,7 @@ class StaticProcessor(object):
         filt_labels = self.filter_ROIs(ROIs)
         if filt_labels: # If any ROIs passed inspection,
             houses = self.ROI_analysis(hsv, ROIs, filt_labels, green_red)
+            return houses
 
 
     def find_house_ROIs(self, hsv, green_red):
@@ -439,7 +467,14 @@ class StaticProcessor(object):
             # Convert back to camera coordinates
             c = np.array((cx, cy, 1))
             c_cam = np.dot(invmat, c)[0:2]
-            houses.append((idx, c_cam[0], c_cam[1]))
+            houses.append((idx, green_red, c_cam[0], c_cam[1]))
             if self.calibrate:
                 draw_point(self.GUI.img, tuple(np.int0(c_cam)))
         return np.array(houses)
+
+    def perspect(self, houses):
+        # vid_corners = np.array([corner.coords() for corner in self.get_corners()], dtype=np.float32)
+        # field_corners = np.array([[0,0], [0, 150], [90,150], [90,0]], dtype=np.float32)
+        # mat = cv2.getPerspectiveTransform(vid_corners, field_corners)
+        # cv2.pers
+        pass
