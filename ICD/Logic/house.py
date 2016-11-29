@@ -1,7 +1,7 @@
 from ICD.common import RAvgPoint
 class House(object):
 
-    block = (40, 40, 40)
+    block = (4, 4, 4)
     GREEN = 0
     RED = 1
     DEBRIS = 2  # maybe unused.

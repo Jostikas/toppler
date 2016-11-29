@@ -10,7 +10,7 @@ import math
 
 import cv2
 
-from common import *
+from ICD.common import *
 
 default_settings = {'min_intersect_area': 200,
                     'red_clip': [0, 169, 134, 17, 255, 255],
@@ -281,6 +281,7 @@ class StaticProcessor(object):
         houses = self.find_houses(frame, GREEN)
         np.append(houses, self.find_houses(frame, RED), axis=0)
         house_coords = self.perspect(houses)
+        self.field.update_houses(house_coords)
 
     # def find_field(self, gray):
     #     img = cv2.medianBlur(gray, 3)
@@ -374,7 +375,6 @@ class StaticProcessor(object):
             pass
         return ROIs
 
-
     def filter_ROIs(self, ROIs):
         """Filter ROIs based on location and area.
 
@@ -467,14 +467,16 @@ class StaticProcessor(object):
             # Convert back to camera coordinates
             c = np.array((cx, cy, 1))
             c_cam = np.dot(invmat, c)[0:2]
-            houses.append((idx, green_red, c_cam[0], c_cam[1]))
+            houses.append((idx, green_red, c_cam))
             if self.calibrate:
                 draw_point(self.GUI.img, tuple(np.int0(c_cam)))
         return np.array(houses)
 
     def perspect(self, houses):
-        # vid_corners = np.array([corner.coords() for corner in self.get_corners()], dtype=np.float32)
-        # field_corners = np.array([[0,0], [0, 150], [90,150], [90,0]], dtype=np.float32)
-        # mat = cv2.getPerspectiveTransform(vid_corners, field_corners)
-        # cv2.pers
-        pass
+        vid_corners = np.array([corner.coords() for corner in self.get_corners()], dtype=np.float32)
+        field_corners = np.array([[0,0], [0, 150], [90,150], [90,0]], dtype=np.float32)
+        mat = cv2.getPerspectiveTransform(vid_corners, field_corners)
+        house_coords = houses
+        house_coords[:,2] = cv2.perspectiveTransform(houses[:,2:4], mat)
+        return house_coords
+
