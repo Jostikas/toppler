@@ -27,12 +27,12 @@ cam.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_W)
 cam.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_H)
 cam.set(cv2.CAP_PROP_FPS, FPS)
 arudict = aruco.custom_dictionary(8, 3)
-camera_matrix = np.array([5.4149050361000627e+02, 0., 3.2304389583118632e+02, 0.,
-                          5.4125590709427399e+02, 2.3403508925960239e+02, 0., 0., 1.])
+camera_matrix = np.array([6.6419013281274511e+02, 0., 3.3006505461506646e+02, 0.,
+                          6.6587003740196826e+02, 2.3030870519881907e+02, 0., 0., 1.])
 camera_matrix = camera_matrix.reshape((3, 3))
-dist_coeffs = np.array([-1.0437158943177836e-01, 1.1861521365727017e-01,
-                        1.6787284723004615e-03, -7.2814039128852074e-04,
-                        -2.1159177335098589e-02])
+dist_coeffs = np.array([2.0806786957819065e-01, -3.6839605435678208e-01,
+                        -1.2078578161331370e-02, 6.4294407773653481e-03,
+                        4.2723310854154123e-01])
 
 car_board = aruco.Board_create(objPoints, arudict, np.arange(0, 4))
 

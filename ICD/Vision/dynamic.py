@@ -1,8 +1,9 @@
-import cv2.aruco as aruco
+from cv2 import aruco
 
 
 class DynamicProcessor(object):
     """Processes frames for car detection and potential other moving stuff."""
-    def __init__(self, car):
+
+    def __init__(self, car, board):
         super(DynamicProcessor, self).__init__()
         pass

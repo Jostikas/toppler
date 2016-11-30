@@ -1,5 +1,1 @@
-<<<<<<< HEAD
-{'red_clip': [0, 0, 0, 44, 255, 255], 'target': 3, 'green_ROI': 82, 'max_area': 3800, 'min_intersect_area': 200, 'green_clip': [51, 115, 0, 72, 255, 255], 'rho': 0, 'theta': 1, 'Htres': 160}
-=======
-{'red_clip': [0, 0, 0, 15, 255, 255], 'Htres': 156, 'target': 3, 'green_ROI': 82, 'max_area': 3800, 'min_intersect_area': 200, 'rho': 0, 'theta': 1, 'green_clip': [51, 0, 0, 104, 253, 255]}
->>>>>>> origin/master
+{'red_clip': [0, 0, 0, 15, 255, 255], 'Htres': 156, 'target': 3, 'green_ROI': 82, 'max_area': 3800, 'min_intersect_area': 200, 'rho': 0, 'theta': 2, 'green_clip': [51, 0, 0, 104, 253, 255]}

@@ -233,7 +233,8 @@ class StaticProcessor(object):
             if self._reset_flag:
                 self._reset()
             cv2.setNumThreads(0)  # See https://github.com/opencv/opencv/issues/5150
-            self.proc = mp.Process(target=self.process_static, args=(self.accumulator,))
+            self.proc = mp.Process(target=self.process_static, args=(self.accumulator,),
+                                   name='Static-{}-proc'.format(self.field.id))
             # self.proc = mp.Process(target=self.tester, args=(self.accumulator,))
             self.proc.daemon = True
             self.proc.start()
@@ -278,10 +279,17 @@ class StaticProcessor(object):
             self.GUI.img2[:] = frame[:, :, 0]
 
         self.find_field(frame[:, :, 2])
-        houses = self.find_houses(frame, GREEN)
-        np.append(houses, self.find_houses(frame, RED), axis=0)
-        house_coords = self.perspect(houses)
-        self.field.update_houses(house_coords)
+        g_houses = self.find_houses(frame, GREEN)
+        r_houses = self.find_houses(frame, RED)
+        try:
+            houses = np.append(g_houses, r_houses, axis=0)
+        except ValueError:
+            if g_houses.any():
+                houses = g_houses
+            else:
+                houses = r_houses
+        self.perspect(houses)
+        self.field.update_houses(houses.tolist())
 
     # def find_field(self, gray):
     #     img = cv2.medianBlur(gray, 3)
@@ -343,7 +351,6 @@ class StaticProcessor(object):
                 y2 = int(y0 - 1000 * (a))
                 cv2.line(self.GUI.img, (x1, y1), (x2, y2), (255, 0, 0), 2)
 
-
     def find_houses(self, hsv, green_red):
         """Segment scene by color to find red or green houses.
 
@@ -354,7 +361,6 @@ class StaticProcessor(object):
         if filt_labels: # If any ROIs passed inspection,
             houses = self.ROI_analysis(hsv, ROIs, filt_labels, green_red)
             return houses
-
 
     def find_house_ROIs(self, hsv, green_red):
         """Find and label general location of houses by color segmentation
@@ -368,7 +374,7 @@ class StaticProcessor(object):
         mask = cv2.inRange(hsv, np.array(clip[0:3]), np.array(clip[3:6]))
         cv2.erode(mask, None, mask, iterations=3)
         cv2.medianBlur(mask, 3, mask)
-        cv2.dilate(mask, None, mask, None, 3)
+        cv2.dilate(mask, None, mask, None, 2)
         ROIs = cv2.connectedComponentsWithStats(mask, ltype=cv2.CV_16U)
         if self.calibrate:
             self.GUI.img[mask > 0] = (0, 0, 255) if green_red else (0, 255, 0)  # output the mask
@@ -467,16 +473,14 @@ class StaticProcessor(object):
             # Convert back to camera coordinates
             c = np.array((cx, cy, 1))
             c_cam = np.dot(invmat, c)[0:2]
-            houses.append((idx, green_red, c_cam))
+            houses.append((idx, green_red, c_cam[0], c_cam[1]))
             if self.calibrate:
                 draw_point(self.GUI.img, tuple(np.int0(c_cam)))
         return np.array(houses)
 
     def perspect(self, houses):
         vid_corners = np.array([corner.coords() for corner in self.get_corners()], dtype=np.float32)
-        field_corners = np.array([[0,0], [0, 150], [90,150], [90,0]], dtype=np.float32)
+        field_corners = np.array([[0, 0], [150, 0], [150, 90], [0, 90]], dtype=np.float32)
         mat = cv2.getPerspectiveTransform(vid_corners, field_corners)
-        house_coords = houses
-        house_coords[:,2] = cv2.perspectiveTransform(houses[:,2:4], mat)
-        return house_coords
-
+        houses[:, None, 2:4] = cv2.perspectiveTransform(houses[:, None, 2:4], mat)
+        return houses

@@ -1,13 +1,12 @@
 from __future__ import print_function
 from Vision.vision import FrameProcessor
 from Vision.common import FRAME_H, FRAME_W, FPS
-from Logic.field import Field
+from Logic.field import Field, FieldGUI
 from Logic.car import Car
 import cv2
 import numpy as np
 from Vision.common import RAvg
 from time import time
-
 
 cam = cv2.VideoCapture(0)
 cam.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_H)
@@ -30,11 +29,13 @@ for n, line in enumerate(maintext.splitlines()):
     cv2.putText(mainpic, line, (10,(n+1)*20), cv2.FONT_HERSHEY_PLAIN, 1, 0)
 cv2.imshow('Main', mainpic)
 
-field = Field(0)
+field0_gui = FieldGUI(0)
+field = Field(0, field0_gui)
 car = Car()
 fproc = FrameProcessor((FRAME_H, FRAME_W, 3), field, car)
 
 dispatch = {'1': fproc.static.toggle_GUI,
+            'f': lambda: field0_gui.toggle(),
             'r': lambda : fproc.toggle_screen('raw'),
             'h': lambda : fproc.toggle_screen('H'),
             's': lambda : fproc.toggle_screen('S'),
@@ -66,6 +67,7 @@ while True:
         print('Failed to capture frame.')
         break
     fproc.process_frame(frame)
+    field0_gui.update()
     # print(fproc.static.get_corners())
     key = cv2.waitKey(1) & 0xff
     if key == 27:
@@ -76,5 +78,7 @@ while True:
 
 
 print('Exit-key: {}'.format(key & 0xff))
+field.stop()
+field.join()
 cam.release()
 cv2.destroyAllWindows()
