@@ -19,7 +19,7 @@ default_settings = {'min_intersect_area': 200,
                     'target': 3}
 GREEN = 0
 RED = 1
-calibrate_more = True
+calibrate_more = False
 
 h_cam_mm = 1420  # mm
 pixres = 1.18 * h_cam_mm / FRAME_W  # mm/px
@@ -275,7 +275,7 @@ class StaticProcessor(object):
                 self.GUI.img2 = np.reshape(np.frombuffer(self.GUI.imgbuffer2.get_obj(), dtype=np.uint8), self.shape[:2])
         # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         cv2.cvtColor(frame, cv2.COLOR_BGR2HSV_FULL, frame)
-        if self.calibrate:
+        if self.calibrate and calibrate_more:
             self.GUI.img2[:] = frame[:, :, 0]
 
         self.find_field(frame[:, :, 2])
@@ -338,7 +338,8 @@ class StaticProcessor(object):
         if self.calibrate:  # Contour search is destructive, so have to show it here or copy stuff.
             self.GUI.img[f_mask > 0] = [255, 255, 255]
             self.GUI.img[f_mask == 0] = [0, 0, 0]
-            self.GUI.img2[:] = f_mask
+            if calibrate_more:
+                self.GUI.img2[:] = f_mask
             for line in lines:
                 rho, theta = np.ravel(line)
                 a = np.cos(theta)

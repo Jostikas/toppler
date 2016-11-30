@@ -1,6 +1,7 @@
 from static import StaticProcessor
 from dynamic import DynamicProcessor
 import cv2
+from .aruco import create_car_board
 
 # default states
 defaultshow = {'raw': False,
@@ -16,10 +17,11 @@ windowlocations = {'raw': (1920 / 3 * 1, 30),
 class FrameProcessor(object):
     """Process frames. yay. Maybe should thread this, really not sure.
     If possible, I'd rather not, then camera can keep timestep for other stuff too."""
-    def __init__(self, shape, field, car):
+
+    def __init__(self, shape, field, car, idx):
         super(FrameProcessor, self).__init__()
         self.static = StaticProcessor(field, shape, avg=15)
-        #self.dynamic = DynamicProcessor(car, shape)
+        self.dynamic = DynamicProcessor(car, shape, create_car_board(idx))
         self.show = {'raw': False, 'H': False, 'S': False, 'V': False}
         self.show_default_screens()
 

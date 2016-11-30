@@ -8,11 +8,11 @@ import numpy as np
 from Vision.common import RAvg
 from time import time
 
-cam = cv2.VideoCapture(0)
-cam.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_H)
-cam.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_W)
+cam0 = cv2.VideoCapture(0)
+cam0.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_H)
+cam0.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_W)
 
-cam.set(cv2.CAP_PROP_FPS, FPS)
+cam0.set(cv2.CAP_PROP_FPS, FPS)
 
 cv2.namedWindow('Main', True)
 mainpic = np.full((300,300), 255, dtype=np.uint8)
@@ -20,26 +20,28 @@ maintext = "Hotkeys:\n" \
            "1: Toggle field 1 calibration\n" \
            "2: Toggle field 2 calibration (N/I)\n" \
            "r: Toggle RAW display\n" \
-           "f: Toggle field display (N/I)\n" \
+           "f: Toggle field 1 display\n" \
+           "g: Toggle field 2 display\n" \
            "h: Toggle Hue display\n" \
            "s: Toggle Sat display\n" \
            "v: Toggle Val display\n" \
            "Esc: Quit"
+
 for n, line in enumerate(maintext.splitlines()):
     cv2.putText(mainpic, line, (10,(n+1)*20), cv2.FONT_HERSHEY_PLAIN, 1, 0)
 cv2.imshow('Main', mainpic)
 
 field0_gui = FieldGUI(0)
-field = Field(0, field0_gui)
-car = Car()
-fproc = FrameProcessor((FRAME_H, FRAME_W, 3), field, car)
+field0 = Field(0, field0_gui)
+car0 = Car()
+fproc0 = FrameProcessor((FRAME_H, FRAME_W, 3), field0, car0, 0)
 
-dispatch = {'1': fproc.static.toggle_GUI,
+dispatch = {'1': fproc0.static.toggle_GUI,
             'f': lambda: field0_gui.toggle(),
-            'r': lambda : fproc.toggle_screen('raw'),
-            'h': lambda : fproc.toggle_screen('H'),
-            's': lambda : fproc.toggle_screen('S'),
-            'v': lambda : fproc.toggle_screen('V'),
+            'r': lambda: fproc0.toggle_screen('raw'),
+            'h': lambda: fproc0.toggle_screen('H'),
+            's': lambda: fproc0.toggle_screen('S'),
+            'v': lambda: fproc0.toggle_screen('V'),
             }
 
 # import cProfile
@@ -62,11 +64,11 @@ dispatch = {'1': fproc.static.toggle_GUI,
 # profile()
 
 while True:
-    flag, frame = cam.read()
+    flag, frame = cam0.read()
     if not flag:
         print('Failed to capture frame.')
         break
-    fproc.process_frame(frame)
+    fproc0.process_frame(frame)
     field0_gui.update()
     # print(fproc.static.get_corners())
     key = cv2.waitKey(1) & 0xff
@@ -78,7 +80,7 @@ while True:
 
 
 print('Exit-key: {}'.format(key & 0xff))
-field.stop()
-field.join()
-cam.release()
+field0.stop()
+field0.join()
+cam0.release()
 cv2.destroyAllWindows()

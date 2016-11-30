@@ -1,4 +1,5 @@
 from cv2 import aruco
+import numpy as np
 
 # Board critical dimensions
 sd = 0.0472  # marker side length
@@ -17,3 +18,7 @@ objPoints = np.array([[[[-sd / 2., sp / 2. + sd, ht]], [[sd / 2., sp / 2. + sd, 
                        [[wr / 2., -sd / 2., hs]]]], dtype=np.float32)
 
 arudict = aruco.custom_dictionary(8, 3)
+
+
+def create_car_board(idx):
+    return aruco.Board_create(objPoints, arudict, np.arange(0, 4) + idx * 4)
