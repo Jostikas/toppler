@@ -1,6 +1,6 @@
 from __future__ import print_function
 from Vision.vision import FrameProcessor
-from Vision.common import FRAME_H, FRAME_W, FPS
+from common import FRAME_H, FRAME_W, FPS
 from Logic.field import Field, FieldGUI
 from Logic.car import Car
 import cv2
@@ -31,9 +31,9 @@ for n, line in enumerate(maintext.splitlines()):
     cv2.putText(mainpic, line, (10,(n+1)*20), cv2.FONT_HERSHEY_PLAIN, 1, 0)
 cv2.imshow('Main', mainpic)
 
-field0_gui = FieldGUI(0)
-field0 = Field(0, field0_gui)
 car0 = Car()
+field0_gui = FieldGUI(0)
+field0 = Field(0, car0, field0_gui)
 fproc0 = FrameProcessor((FRAME_H, FRAME_W, 3), field0, car0, 0)
 
 dispatch = {'1': fproc0.static.toggle_GUI,

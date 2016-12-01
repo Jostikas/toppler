@@ -2,6 +2,7 @@ from cv2 import aruco
 import cv2
 import numpy as np
 from ICD.Vision.common import *
+from ICD.common import putTextMultiline
 
 # Board critical dimensions
 sd = 0.0472  # marker side length
@@ -47,6 +48,13 @@ while True:
     if N:
         # for i in range(len(ids)):
         #     aruco.drawAxis(frame, camera_matrix, dist_coeffs, rvecs[i], tvecs[i], 0.4)
+        mat, jacob = cv2.Rodrigues(rvec)
+        dash = np.full((400, 600), 255, dtype=np.uint8)
+        putTextMultiline(dash, repr(mat), (20, 20))
+        putTextMultiline(dash, repr(tvec), (400, 200))
+        putTextMultiline(dash, repr(rvec), (20, 200))
+        cv2.imshow('Dash', dash)
+
         aruco.drawAxis(frame, logitech_cam_matrix, logitech_dist_coeffs, rvec, tvec, 0.4)
         cv2.putText(frame, 'N = {}'.format(N), (20, 20), cv2.FONT_HERSHEY_PLAIN, 2, (255, 255, 255))
     cv2.imshow('blah', frame)

@@ -151,3 +151,7 @@ def cyclicInRange(src, lowerb, upperb):
         cv2.add(mask1, mask2, mask1)
         return mask1
 
+
+def putTextMultiline(img, text, org, color=0):
+    for n, line in enumerate(text.splitlines()):
+        cv2.putText(img, line, (org[0], org[1] + (n + 1) * 20), cv2.FONT_HERSHEY_PLAIN, 1, color)
