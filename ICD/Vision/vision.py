@@ -1,7 +1,7 @@
 from static import StaticProcessor
 from dynamic import DynamicProcessor
 import cv2
-from .aruco import create_car_board
+from aruco import create_car_board
 
 # default states
 defaultshow = {'raw': False,
@@ -51,7 +51,6 @@ class FrameProcessor(object):
                 cv2.imshow('S', hsv[:, :, 1])
             if v:
                 cv2.imshow('V', hsv[:, :, 2])
-
 
     def process_frame(self, frame):
         """Dispatches frame for processing.
