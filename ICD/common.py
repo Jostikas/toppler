@@ -7,6 +7,9 @@ import multiprocessing.sharedctypes as sct
 FRAME_W = 800
 FRAME_H = 448
 FPS = 30
+H_CAM_MM = 1240  # mm
+pixres = 1.37 * H_CAM_MM / FRAME_W  # mm/px
+H_CAM = H_CAM_MM / pixres  # in pixel units for trigonometry
 
 @total_ordering
 class RAvg(object):

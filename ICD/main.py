@@ -31,8 +31,8 @@ for n, line in enumerate(maintext.splitlines()):
     cv2.putText(mainpic, line, (10,(n+1)*20), cv2.FONT_HERSHEY_PLAIN, 1, 0)
 cv2.imshow('Main', mainpic)
 
-car0 = Car()
 field0_gui = FieldGUI(0)
+car0 = Car(field0_gui)
 field0 = Field(0, car0, field0_gui)
 fproc0 = FrameProcessor((FRAME_H, FRAME_W, 3), field0, car0, 0)
 

@@ -4,7 +4,6 @@ import multiprocessing as mp
 import logging
 from os import removedirs, makedirs
 loglevel = logging.INFO
-from matplotlib import pyplot as plt
 import cProfile
 import math
 
@@ -20,10 +19,6 @@ default_settings = {'min_intersect_area': 200,
 GREEN = 0
 RED = 1
 calibrate_more = False
-
-h_cam_mm = 1420  # mm
-pixres = 1.18 * h_cam_mm / FRAME_W  # mm/px
-h_cam = h_cam_mm / pixres  # in pixel units for trigonometry
 
 
 
@@ -115,7 +110,7 @@ class StaticSettingsGUI(object):
 
 
 class StaticProcessor(object):
-    def __init__(self, field, shape=(FRAME_H, FRAME_W, 3), settingsfile='Vision/static_settings.txt', avg=10):
+    def __init__(self, master, field, shape=(FRAME_H, FRAME_W, 3), settingsfile='Vision/static_settings.txt', avg=10):
         """Processes the frames to detect (quasi)static features in the scene.
 
         :arg field: a Field instance to apply the data to.
@@ -123,6 +118,7 @@ class StaticProcessor(object):
         :arg avg: Averaging factor. The frame rate is decimated by the same amount.
         """
         super(StaticProcessor, self).__init__()
+        self.master = master
         self.field = field
         self.avg = avg
         self.settingsfile = settingsfile
@@ -137,7 +133,7 @@ class StaticProcessor(object):
         self.val = mp.Value('I')
         # The center is duplicate information, but one that is available freely.
         # Also, it's needed for ROI processing.
-        self.center = RAvgPoint((320, 240))
+        self.center = master.center
         self.read_settings(settingsfile)
         self._reset_flag = False  # Flag that the data structures should be reset before processing next frame.
         self.proc = mp.Process(target=lambda : None)
@@ -469,7 +465,7 @@ class StaticProcessor(object):
             cx = x + w / 2.
             # Approximate the base center y coordinate by measuring from the bottom outward by
             # min(h/2 - h/2*tan(alpha), w/2)
-            cy = y + h - min(h / 2 - h / 2 * dist / h_cam, w / 2)
+            cy = y + h - min(h / 2 - h / 2 * dist / H_CAM, w / 2)
 
             # Convert back to camera coordinates
             c = np.array((cx, cy, 1))
@@ -482,6 +478,7 @@ class StaticProcessor(object):
     def perspect(self, houses):
         vid_corners = np.array([corner.coords() for corner in self.get_corners()], dtype=np.float32)
         field_corners = np.array([[0, 0], [150, 0], [150, 90], [0, 90]], dtype=np.float32)
-        mat = cv2.getPerspectiveTransform(vid_corners, field_corners)
+        mat = np.frombuffer(self.master.perspective_matrix.get_obj())
+        mat[:] = cv2.getPerspectiveTransform(vid_corners, field_corners)
         houses[:, None, 2:4] = cv2.perspectiveTransform(houses[:, None, 2:4], mat)
         return houses

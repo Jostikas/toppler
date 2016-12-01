@@ -2,6 +2,8 @@ from static import StaticProcessor
 from dynamic import DynamicProcessor
 import cv2
 from aruco import create_car_board
+from ICD.common import FRAME_H, FRAME_W, RAvgPoint
+import multiprocessing as mp
 
 # default states
 defaultshow = {'raw': False,
@@ -20,8 +22,11 @@ class FrameProcessor(object):
 
     def __init__(self, shape, field, car, idx):
         super(FrameProcessor, self).__init__()
-        self.static = StaticProcessor(field, shape, avg=15)
-        self.dynamic = DynamicProcessor(car, shape, create_car_board(idx))
+        self.field = field
+        self.static = StaticProcessor(self, field, shape, avg=15)
+        self.dynamic = DynamicProcessor(self, car, shape, create_car_board(idx))
+        self.perspective_matrix = mp.Array('d', np.zeros((3, 3)))
+        self.center = RAvgPoint((FRAME_W // 2, FRAME_H // 2))
         self.show = {'raw': False, 'H': False, 'S': False, 'V': False}
         self.show_default_screens()
 

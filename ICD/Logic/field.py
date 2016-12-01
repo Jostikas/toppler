@@ -127,27 +127,6 @@ class Field(mp.Process):
                 col = (0, 255, 0)
             frame[yl:yh, xl:xh] = col
 
-    def draw_car(self):
-        """Draws the car on the field. Orange end is front."""
-        l = 14  # Length and Width of car in cm
-        w = 6
-        frame = np.frombuffer(self.gui.im_array.get_obj(), np.uint8, H * W * 3).reshape((H, W, 3))
-        x, y = self.car.x.value, self.car.y.value
-        dx, dy = self.car.dx.value, self.car.dy.value
-        cv2.line(frame,
-                 (int(x+0.5), int(y+0.5)),
-                 (int(x + l*dx*0.6 + 0.5), int(y + l*dy*0.6+0.5)),
-                 (0, 127, 255),
-                 thickness=w
-                 )
-        cv2.line(frame,
-                 (int(x + 0.5), int(y + 0.5)),
-                 (int(x - l * dx * 0.6 - 0.5), int(y + l * dy * 0.6 + 0.5)),
-                 (255, 0, 0),
-                 thickness=w
-                 )
-        pass
-
     def clean_houses(self):
         """Clean up houses that haven't been updated in 5 or more turns."""
         indices = list(self.houseupdates.irange_key(None, self.update_idx - 5))
