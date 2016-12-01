@@ -6,6 +6,12 @@ import re
 class Interface:
 
     def dbg(self, text):
+        """
+            Prints to the program output with a prefix to indicate that it
+            was printed from the Electronics Interface (E-I) class
+            :param text: the text that should be printed
+            :return: nothing
+        """
         print("E-I: " + str(text))
 
     def __init__(self, port):
@@ -16,20 +22,98 @@ class Interface:
     def __del__(self):
         self.raw.closeConnection()
 
-    # moves the upper robots sideways
-    # a positive speed value moves it away from the starting position
-    # a negative speed value moves it back to its original position
-    # the robot ID is either 0 (nearer to the starting position) or 1 (further away from the starting position)
     def moveUpperRobot(self, robotID, speed):
+        """
+            moves the upper robots sideways
+            :param robotID: the ID of the robot that is needed to be moved \
+                the robot ID is either 0 (nearer to the starting position) \
+                or 1 (further away from the starting position)
+            :param speed: the speed at which the robot should be moved \
+                a positive speed value moves it away from the starting position \
+                a negative speed value moves it back to its original position
+            :return: nothing
+        """
         speedToSet = speed
         id = 2
+        # map input ID of [0 to 1] and [1 to 2], also reverse the motor direction of one robot
+        # I have absolutely no idea, why it is needed, but it works! :)
         if(robotID == 0):
             speedToSet *= -1
             id = 1
-        if(robotID == 0  or  robotID == 1):
+
+        if (robotID == 0 or robotID == 1):
             cmd = "t" + str(id) + ":sd" + str(speedToSet) + "\n"
             self.raw.serialWrite(cmd)
             self.dbg("Sent: " + cmd)
+        else:
+            self.dbg("Unknown ID entered to moveUpperRobot(): " + str(robotID))
+
+    def moveCrane(self, speed):
+        """
+            :param speed: moves the crane up or down with a specified speed \
+                a positive speed value moves it upwards (max 190) \
+                a negative speed value moves it downwards (minimum -190)
+            :return: nothing
+        """
+        # TODO test if it moves in the direction it is supposed to move!
+        self.raw.serialWrite("t3:sd" + speed + "\n")
+
+
+    def meltFishingLine(self, time):
+        """
+            tries to melt the fishing line with a constant power output for a specified time
+            :param time: a positive integer that represents the time in some unknown units \
+            * a value that should be used for testing should be somewhere about 150 \
+            * the time scales linearly so 300 would be twice the time
+            :return: nothing
+        """
+        # TODO test if it actually works!
+        self.raw.serialWrite("l1m" + str(time) + "\n")
+
+    def driveRobot(self, robotID, speed = 0, arcSize = 0):
+        """
+            This function makes a specified robot move in a wantd direction
+            :param robotID: the ID of the robot you want to move
+            :param speed: the speed at which you want the robot to move (it is \
+                    probably going to be a binary value, meaning that it is either stopped or moving)
+            :param arcSize: this value lets you fine-tune the course of the robot.
+            :return: nothing
+        """
+        # TODO this is gonna be awful :)
+        # TODO Make a lookup table containing some values for moving in a straight line
+        # TODO Implement software breaking on the robots (not in python!)
+        self.dbg("Liigutaks maapealset autot, aga see pole veel implementeeritud :(")
+
+        #self.raw.serialWrite("")
+
+    def rotateRobot(self, robotID, amount):
+        """
+        This function is needed if precise turning of a robot is needed. While it is not accurate
+        (500 will not turn the robot the same amount each time it is used), it is still the only
+        way the robot can be turned while being stationary.
+        A good starting value would be somewhere between 500 and 700, which should turn the robot
+        about 10-20 degrees. As it does not scale linearly, a value of 300 would do nothing and a
+        value of 2000 would make the robot spin more than a full revoultion
+
+        :param robotID: The ID of the robot that is needed to be moved
+        :param amount: The amount of rotation wanted from the robot. \
+                Negative values rotate the robot counter-clockwise (TODO untested), \
+                positive clockwise. NB! This value does not scale linearly!!!
+        :return: nothing
+        """
+        # TODO make sure that it actually works the way expected
+        # map input ID of [0 to 1] and [1 to 2]
+        id = 2 #default ID
+        if (robotID == 0):
+            id = 1
+
+        if (robotID == 0 or robotID == 1):
+            cmd = "l" + str(id) + "r" + str(amount) + "\n"
+            self.raw.serialWrite(cmd)
+            self.dbg("Sent: " + cmd)
+        else:
+            self.dbg("Unknown ID entered to rotateRobot(): " + str(robotID))
+
 
 class RawElectronics:
 
