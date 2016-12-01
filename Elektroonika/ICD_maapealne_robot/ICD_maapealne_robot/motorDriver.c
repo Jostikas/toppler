@@ -84,7 +84,7 @@ void motorDriverInit(){
 	EICRA = 0b00000101; //both edges
 	EIMSK = 0b00000011; //enable mask
 	*/
-	sei();
+	//sei();
 	
 	set_speed_m1(0);
 	set_speed_m1(0);

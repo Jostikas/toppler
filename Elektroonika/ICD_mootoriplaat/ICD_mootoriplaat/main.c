@@ -535,15 +535,15 @@ int main(void) {
 			usb_write(response);
 			stallChanged = 0;
 		}	
-    //TODO implement UART read
+	    //TODO implement UART read
 		if (usb_serial_available()) {
 			n = recv_str(buf, sizeof(buf));
 			if (n == sizeof(buf)) {
 				parse_and_execute_command(buf);
 			}
 		}else if (newData == 1){
-      parse_and_execute_command(input_buf);
-      newData = 0;
-    }	
+			parse_and_execute_command(input_buf);
+			newData = 0;
+		}	
 	}
 }

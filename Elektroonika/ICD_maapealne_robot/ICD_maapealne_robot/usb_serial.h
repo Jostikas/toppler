@@ -82,7 +82,7 @@ int8_t usb_serial_set_control(uint8_t signals); // set DSR, DCD, RI, etc
 #define LSB(n) (n & 255)
 #define MSB(n) ((n >> 8) & 255)
 
-#define __AVR_ATmega32U4__
+//#define __AVR_ATmega32U4__
 
 #if defined(__AVR_AT90USB162__)
 #define HW_CONFIG()

@@ -1937,7 +1937,7 @@ int main(void) {
      d68:	0f 90       	pop	r0
      d6a:	0f 90       	pop	r0
 		}	
-    //TODO implement UART read
+	    //TODO implement UART read
 		if (usb_serial_available()) {
      d6c:	0e 94 18 07 	call	0xe30	; 0xe30 <usb_serial_available>
      d70:	88 23       	and	r24, r24
@@ -1962,11 +1962,11 @@ int main(void) {
      d92:	81 30       	cpi	r24, 0x01	; 1
      d94:	09 f0       	breq	.+2      	; 0xd98 <main+0x284>
      d96:	7a cf       	rjmp	.-268    	; 0xc8c <main+0x178>
-      parse_and_execute_command(input_buf);
+			parse_and_execute_command(input_buf);
      d98:	80 e9       	ldi	r24, 0x90	; 144
      d9a:	91 e0       	ldi	r25, 0x01	; 1
      d9c:	0e 94 dd 03 	call	0x7ba	; 0x7ba <parse_and_execute_command>
-      newData = 0;
+			newData = 0;
      da0:	10 92 5c 01 	sts	0x015C, r1
      da4:	73 cf       	rjmp	.-282    	; 0xc8c <main+0x178>
 

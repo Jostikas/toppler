@@ -33,7 +33,7 @@
 #define USB_SERIAL_PRIVATE_INCLUDE
 #include "usb_serial.h"
 
-#define __AVR_ATmega32U4__
+//#define __AVR_ATmega32U4__
 
 
 /**************************************************************************

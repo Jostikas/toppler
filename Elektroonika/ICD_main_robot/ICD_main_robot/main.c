@@ -70,6 +70,10 @@ uint8_t tx_address_l2[5]	= {0xE7,0xE7,0xE7,0xE7,0xE2};	//Lower robot #2
 uint8_t rx_address[5]		= {0xE7,0xE7,0xE7,0xE7,0xE7};	//Self
 uint8_t no_data_from_nrf_count = 0;
 
+uint8_t robot_to_control = 1;
+_Bool should_control_lower_robots = 0;
+_Bool is_armed = 0;
+
 /*********************************
 *   __  __           _           *
 *  |  \/  |   __ _  (_)  _ __    *
@@ -109,6 +113,7 @@ int main(void){
 	nrf24_tx_address(tx_address);
 	nrf24_rx_address(rx_address);
 	
+	setLED(0, 0, 1, 0);
     while(1){
 		if(uart_data_available){
 			uart_data_available = 0;
@@ -116,11 +121,14 @@ int main(void){
 			usb_write(response);
 		}
 		if(usb_serial_available()) {
-			uint16_t n = recv_str(buf, sizeof(buf));
 			setLED(1, 1, 0, 0);
+			uint16_t n = recv_str(buf, sizeof(buf));
+			setLED(1, 0, 1, 0);
 			if (n == sizeof(buf)) {
 				setLED(1, 0, 0, 1);
 				parse_and_execute_command(buf, 1);
+				setLED(1, 1, 1, 1);
+			
 			}
 		}
 		
@@ -130,10 +138,182 @@ int main(void){
 			
 		while(nrf24_dataReady()){
 			nrf24_getData(data_array);
+			if(data_array[0] == 0xE1  ||  data_array[0] == 0xE2){
+				//Tegemist on maapealse robotiga
+				
+			}else{
+				//tõenäoliselt, kui keegi saadab midagi ja aadress ei klapi on tegemist puldiga
+			
+				usb_write("Received:\n");
+				for(int i = 0; i < 6; i++){
+					sprintf(response, "%d. val=%d\n", i, data_array[i]);
+					usb_write(response);
+				}
+				
+				
+				if(data_array[6] & (1 << 0)){
+					//Armed
+					is_armed = 1;
+					usb_write("Armed\n");
+				}else{
+					//Not armed
+					is_armed = 0;
+				}
+				
+				if(   data_array[7] & (1 << 0)   ){
+					//LEDs on
+				}else if(   data_array[7] & (1 << 1)   ){
+					//LEDs off
+				}
+				if(   data_array[7] & (1 << 2)   ){
+					//FPV on
+				}else if(   data_array[7] & (1 << 3)   ){
+					//FPV off
+				}
+				if(   data_array[7] & (1 << 4)   ){
+					//Buzzer on
+					//Võiks vahetada, kas autode kontrollimisel juhtida üht või teist
+					robot_to_control = 1;
+				}else if(   data_array[7] & (1 << 5)   ){
+					//Buzzer off
+					//Võiks vahetada, kas autode kontrollimisel juhtida üht või teist
+					robot_to_control = 2;
+				}
+				if(   data_array[1] < 5   &&  data_array[0] < 5   &&   is_armed){
+					//Yaw stick left
+					//See võiks tamiili läbi kärsatada
+					sprintf(buf, "Tamiil: %d\n", data_array[4]);
+					usb_write(buf);
+					
+					if(robot_to_control == 1){
+						//Tahetakse juhtida alumist robotit nr. 1
+						nrf24_tx_address(tx_address_l1);
+					}else{
+						//Tahetakse juhtida alumist robotit nr. 2
+						nrf24_tx_address(tx_address_l2);
+					}
+					
+					data_array[0] = 0xE7;	//Sent from main board
+					data_array[1] = 0x03;	//Cut the line
+					data_array[2] = data_array[4] & 0xFF;
+					data_array[3] = 0 >> 8;
+					nrf24_send(data_array);
+					while(nrf24_isSending());
+					uint8_t temp = nrf24_lastMessageStatus();
+					uint8_t connection_quality = nrf24_retransmissionCount();
+					nrf24_tx_address(tx_address);
+					nrf24_powerUpRx();
+					if(temp == NRF24_MESSAGE_LOST){
+						usb_write("<message:lost>\n");
+					}else if(temp == NRF24_TRANSMISSON_OK){
+						usb_write("<message:sent>\n");
+					}else{
+						usb_write("Something is really wrong!!!");
+					}
+					sprintf(response, "<quality:%d>\n", connection_quality);
+					usb_write(response);
+				}else{
+					//
+				}
+				if(   data_array[7] & (1 << 7)   ){
+					//Not currently used, add something fun here!
+				}
+				
+				if(data_array[6] & (1 << 1)){
+					//Flight mode 1
+					usb_write("Ulemised\n");
+					should_control_lower_robots = 0;
+					
+					int16_t speed = 0;
+					if(data_array[2] < 95){
+						speed = data_array[2] - 95;
+					}else if(data_array[2] > 105){
+						speed = data_array[2] - 105;
+					}
+					if(!is_armed){
+						speed = 0;
+					}
+					if(robot_to_control == 2){
+						int16_t vspeed = 0;
+						if(data_array[3] < 95){
+							vspeed = data_array[3] - 95;
+						}else if(data_array[3] > 105){
+							vspeed = data_array[3] - 105;
+						}else{
+							vspeed = 0;
+						}
+						if(!is_armed){
+							vspeed = 0;
+						}
+						sprintf(response, "%d:sd%i\n", 3, vspeed);
+						uart_print(response);
+						usb_write("<sent_to_uart:");
+						usb_write(response);
+						usb_write(">\n");
+					}
+					sprintf(response, "%d:sd%i\n", robot_to_control, speed);
+					uart_print(response);
+					usb_write("<sent_to_uart:");
+					usb_write(response);
+					usb_write(">\n");
+				}else{
+					//Flight mode 2
+					should_control_lower_robots = 1;
+					usb_write("alumised\n");
+					
+					if(is_armed){
+						if(data_array[3] < 95){
+							motor_right_speed_buffer = motor_left_speed_buffer = (data_array[2] - 95)*data_array[5]/10; //pmst pitch määrab kiiruse, l-aux määrab kordaja
+						}else if(data_array[3] > 105){
+							motor_right_speed_buffer = motor_left_speed_buffer = (data_array[2] - 105)*data_array[5]/10; //pmst pitch määrab kiiruse, l-aux määrab kordaja
+						}else{
+							motor_right_speed_buffer = motor_left_speed_buffer = 0;
+						}
+					
+						if(motor_right_speed_buffer != 0){
+							motor_right_speed_buffer *= -1;
+					
+							motor_right_speed_buffer	+= data_array[3] * data_array[4] / 20;
+							motor_left_speed_buffer		+= data_array[3] * data_array[4] / 20; 
+						}
+					
+						if(robot_to_control == 1){
+							//Tahetakse juhtida alumist robotit nr. 1
+							nrf24_tx_address(tx_address_l1);
+						}else{
+							//Tahetakse juhtida alumist robotit nr. 2
+							nrf24_tx_address(tx_address_l2);
+						}
+						data_array[0] = 0xE7;	//Sent from main board
+						data_array[1] = 0x01;	//Want to change the speed of motors
+						data_array[2] = motor_left_speed_buffer & 0xFF;
+						data_array[3] = motor_left_speed_buffer >> 8;
+						data_array[4] = motor_right_speed_buffer & 0xFF;
+						data_array[5] = motor_right_speed_buffer >> 8;
+						data_array[6] = 0;		//Don't send anything back
+						nrf24_send(data_array);
+						while(nrf24_isSending());
+						uint8_t temp = nrf24_lastMessageStatus();
+						uint8_t connection_quality = nrf24_retransmissionCount();
+						nrf24_tx_address(tx_address);
+						nrf24_powerUpRx();
+						if(temp == NRF24_MESSAGE_LOST){
+							usb_write("<message:lost>\n");
+						}else if(temp == NRF24_TRANSMISSON_OK){
+							usb_write("<message:sent>\n");
+						}else{
+							usb_write("Something is really wrong!!!");
+						}
+						sprintf(response, "<quality:%d>\n", connection_quality);
+						usb_write(response);
+					}
+				}		
+			}
+			
 			
 		}
 		
-		_delay_ms(100);
+		_delay_ms(5);
     }
 }
 
@@ -215,7 +395,7 @@ void usb_write(const char *str) {
 uint8_t recv_str(char *buf, uint8_t size) {
 	char data;
 	uint8_t count = 0;
-	
+	uint8_t linuxfix = 0;
 	while (count < size) {
 		data = usb_serial_getchar();
 		if (data == '\r' || data == '\n') {
@@ -225,6 +405,9 @@ uint8_t recv_str(char *buf, uint8_t size) {
 		if (data >= ' ' && data <= '~') {
 			*buf++ = data;
 			count++;
+		}
+		if(++linuxfix == 0){
+			return 0xFF;
 		}
 	}
 	return count;
@@ -337,7 +520,77 @@ void parse_and_execute_command(char *buf, _Bool answer_to_usb) {
 	}else if(command[0] == 'l'){
 		//Tahetakse juhtida alumist robotit
 		
-		if(command[2] == 'l'){
+		if(command[2] == 't'){
+			//Tahetakse pöörata robotit
+			uint16_t time = atoi(command+3);
+			if(command[1] == '1'){
+				//Tahetakse juhtida alumist robotit nr. 1
+				nrf24_tx_address(tx_address_l1);
+			}else if(command[1] == '2'){
+				//Tahetakse juhtida alumist robotit nr. 2
+				nrf24_tx_address(tx_address_l2);
+			}
+			data_array[0] = 0xE7;	//Sent from main board
+			data_array[1] = 0x02;	//turn the robot
+			data_array[2] = motor_left_speed_buffer & 0xFF;
+			data_array[3] = motor_left_speed_buffer >> 8;
+			data_array[4] = motor_right_speed_buffer & 0xFF;
+			data_array[5] = motor_right_speed_buffer >> 8;
+			data_array[6] = time & 0xFF;
+			data_array[7] = time >> 8;
+			nrf24_send(data_array);
+			while(nrf24_isSending());
+			uint8_t temp = nrf24_lastMessageStatus();
+			uint8_t connection_quality = nrf24_retransmissionCount();
+			nrf24_tx_address(tx_address);
+			nrf24_powerUpRx();
+			if(temp == NRF24_MESSAGE_LOST){
+				usb_write("<message:lost>\n");
+			}else if(temp == NRF24_TRANSMISSON_OK){
+				usb_write("<message:sent>\n");
+			}else{
+				usb_write("Something is really wrong!!!");
+			}
+			sprintf(response, "<quality:%d>\n", connection_quality);
+			usb_write(response);
+		}else if(command[2] == 'm'){
+			//Tahetakse tamiili sulatada
+			int16_t melttime = atoi(command+3);
+			
+			sprintf(response, "<melt:%d>\n", melttime);
+			usb_write(response);
+			
+			if(melttime > 300){
+				usb_write("<Too high value!>\n");
+			}else{
+				if(command[1] == '1'){
+					//Tahetakse juhtida alumist robotit nr. 1
+					nrf24_tx_address(tx_address_l1);
+				}else if(command[1] == '2'){
+					//Tahetakse juhtida alumist robotit nr. 2
+					nrf24_tx_address(tx_address_l2);
+				}
+				data_array[0] = 0xE7;	//Sent from main board
+				data_array[1] = 0x03;	//Want to melt the line
+				data_array[2] = melttime & 0xFF;
+				data_array[3] = melttime >> 8;
+				nrf24_send(data_array);
+				while(nrf24_isSending());
+				uint8_t temp = nrf24_lastMessageStatus();
+				uint8_t connection_quality = nrf24_retransmissionCount();
+				nrf24_tx_address(tx_address);
+				nrf24_powerUpRx();
+				if(temp == NRF24_MESSAGE_LOST){
+					usb_write("<message:lost>\n");
+				}else if(temp == NRF24_TRANSMISSON_OK){
+					usb_write("<message:sent>\n");
+				}else{
+					usb_write("Something is really wrong!!!");
+				}
+				sprintf(response, "<quality:%d>\n", connection_quality);
+				usb_write(response);
+			}
+		}else if(command[2] == 'l'){
 			//Tahetakse sättida vasaku ratta kiirust
 			motor_left_speed_buffer = atoi(command+3);
 			sprintf(response, "<slbt:%d>\n", motor_left_speed_buffer);
