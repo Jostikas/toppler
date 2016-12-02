@@ -42,3 +42,8 @@ class Car(object):
                  thickness=w
                  )
 
+    def coords(self):
+        return self.x.value, self.y.value
+
+    def yxintcoords(self):
+        return int(self.y.value + 0.5), int(self.x.value + 0.5)

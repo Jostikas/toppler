@@ -8,7 +8,7 @@ import numpy as np
 from Vision.common import RAvg
 from time import time
 
-cam0 = cv2.VideoCapture(0)
+cam0 = cv2.VideoCapture(1)
 cam0.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_H)
 cam0.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_W)
 

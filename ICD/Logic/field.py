@@ -9,9 +9,10 @@ import cv2
 D = 4 # Distance between a new house and any old house in centimeters for it to be considered a separate house.
 H = 90  # Height and width of the field in cm, with (0,0) in the upper left-hand corner
 W = 150
-R_WEIGHT = 30  # Don't want the path to go there, like, at all
-G_WEIGHT = -5  # To reduce the cost for approaching green houses near red ones, and knock over any on the way.
-D_WEIGHT = 5  # Avoid if possible.
+R_WEIGHT = 3500  # Don't want the path to go there, like, at all
+G_WEIGHT = -0  # To reduce the cost for approaching green houses near red ones, and knock over any on the way.
+D_WEIGHT = 500  # Avoid if possible.
+K_SIZE = 41
 
 class FieldGUI(object):
 
@@ -66,6 +67,7 @@ class Field(mp.Process):
         self.next_new_house = 0
         self.potentials = np.zeros((H, W), dtype = float)
         self.que =  mp.Queue(4)
+        self.path = list()
         self.start()
 
     def stop(self):
@@ -125,7 +127,8 @@ class Field(mp.Process):
         self.update_potentials()
         if self.gui.enabled:
             self.draw_houses()
-            self.draw_path(self.create_path((0,0), (149, 89)))
+            self.draw_path(self._create_path((45, 75), self.car.yxintcoords()))
+
 
     def update_potentials(self):
         self.potentials = np.zeros((H, W))
@@ -138,41 +141,52 @@ class Field(mp.Process):
                 weight = D_WEIGHT
             x, y = house.center.coords()
             self.potentials[int(y - 2 + 0.5):int(y + 2 + 0.5), int(x - 2 + 0.5):int(x + 2 + 0.5)] = weight
-            cv2.GaussianBlur(self.potentials, (31, 31), 4, self.potentials, borderType=cv2.BORDER_CONSTANT)
+            cv2.GaussianBlur(self.potentials, (K_SIZE, K_SIZE), 3, self.potentials, borderType=cv2.BORDER_CONSTANT)
             np.maximum(self.potentials, 0, self.potentials)
 
     def neighbours(self, point):
         """Return list of neighbour cells. 8 neighbours"""
-        x, y = point
+        y, x = point
         ret = list()
-        if x > 0:
-            if y > 0:
-                ret.append((x-1, y-1))
-            ret.append((x-1, y))
-            if y < H-1:
-                ret.append((x-1, y+1))
         if y > 0:
-            ret.append((x, y-1))
-        if y < H-1:
-            ret.append((x, y+1))
+            if x > 0:
+                ret.append((y - 1, x - 1))
+            ret.append((y - 1, x))
+            if x < W - 1:
+                ret.append((y - 1, x + 1))
+        if x > 0:
+            ret.append((y, x - 1))
         if x < W-1:
-            if y > 0:
-                ret.append((x+1, y-1))
-            ret.append((x+1, y))
-            if y < H-1:
-                ret.append((x+1, y+1))
+            ret.append((y, x + 1))
+        if y < H - 1:
+            if x > 0:
+                ret.append((y + 1, x - 1))
+            ret.append((y + 1, x))
+            if x < W - 1:
+                ret.append((y + 1, x + 1))
         return ret
 
     def create_path(self, start, end):
+        self.call('_create_path', start, end)
+
+    def _create_path(self, start, end):
+        if H <= start[0] or W <= start[1] or \
+                        H <= end[0] or W <= end[1] or \
+                        start[0] < 0 or start[1] < 0 or \
+                        end[0] < 0 or end[1] < 0:
+            return []
         from math import sqrt
-        pq = SortedList(lambda x: -x[0])  # Priority Queue, with priority as the first element of entries
+        pq = SortedList(key=lambda x: -x[0])  # Priority Queue, with priority as the first element of entries
         parents = dict()
         parents[start] = None
         dist = dict()
         dist[start] = 0
         # The cost function is straight-line distance + needed climb.
         def costfunc(point, other):
-            pot = max(self.potentials[other] - self.potentials[point], 0)
+            stress = self.potentials[other] - self.potentials[point]
+            if stress < 0:
+                stress *= 0.8
+            pot = stress
             dist = 1. if point[0] == other[0] or point[1] == other[1] else 1.414
             return pot + dist
         # The heuristic is straight-line distance plus needed climb
@@ -194,7 +208,7 @@ class Field(mp.Process):
                 break
 
             for v in self.neighbours(u):
-                new_dist = dist[u] + costfunc[u, v]
+                new_dist = dist[u] + costfunc(u, v)
                 if v not in dist or new_dist < dist[v]:
                     dist[v] = new_dist
                     est_v = new_dist + heuristic(v)
@@ -203,18 +217,20 @@ class Field(mp.Process):
         while u is not None:
             path.append(u)
             u = parents[u]
-        path = path.reverse()
+        path.reverse()
+        self.path = path
         return path
 
     def draw_path(self, path):
-        path = np.array(path)
-        path = path.T
-        img = np.frombuffer(self.gui.im_array, np.uint8).reshape((H,W,3))
-        img[path] = [255, 255, 200]
+        if path:
+            path = np.array(path)
+            path = path.T
+            img = np.frombuffer(self.gui.im_array.get_obj(), np.uint8).reshape((H, W, 3))
+            img[path[0], path[1], :] = [255, 255, 200]
 
     def draw_houses(self):
         frame = np.frombuffer(self.gui.im_array.get_obj(), np.uint8, H * W * 3).reshape((H, W, 3))
-        frame[:] = cv2.cvtColor(cv2.convertScaleAbs(self.potentials, alpha=80), cv2.COLOR_GRAY2BGR)
+        frame[:] = cv2.cvtColor(cv2.convertScaleAbs(self.potentials, alpha=1), cv2.COLOR_GRAY2BGR)
         for house in self.houses.values():
             x, y = house.center.coords()
             xl, yl = max(x - 2, 0), max(y - 2, 0)
@@ -223,7 +239,9 @@ class Field(mp.Process):
                 col = (0, 0, 255)
             elif house.color == House.GREEN:
                 col = (0, 255, 0)
-                # frame[yl:yh, xl:xh] = col
+            frame[yl:yh, xl:xh] = col
+        if self.path:
+            self.draw_path(self.path)
 
     def clean_houses(self):
         """Clean up houses that haven't been updated in 5 or more turns."""

@@ -65,7 +65,6 @@ class DynamicProcessor(object):
         if N:
             cv2.aruco.drawAxis(frame, cam_mat, cam_dist, rvec, tvec, 0.4)
             cv2.aruco.drawDetectedMarkers(frame, corners, ids)
-            cv2.imshow('ARUCO', frame)
             loc, dir = self.car_to_field(rvec, tvec)
             if loc is not None:
                 self.car.update_pos(loc, dir)
