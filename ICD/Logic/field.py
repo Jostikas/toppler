@@ -1,4 +1,5 @@
 from sortedcollections import ValueSortedDict
+from sortedcontainers import SortedList
 from house import House
 import multiprocessing as mp
 import Queue
@@ -124,6 +125,7 @@ class Field(mp.Process):
         self.update_potentials()
         if self.gui.enabled:
             self.draw_houses()
+            self.draw_path(self.create_path((0,0), (149, 89)))
 
     def update_potentials(self):
         self.potentials = np.zeros((H, W))
@@ -138,6 +140,77 @@ class Field(mp.Process):
             self.potentials[int(y - 2 + 0.5):int(y + 2 + 0.5), int(x - 2 + 0.5):int(x + 2 + 0.5)] = weight
             cv2.GaussianBlur(self.potentials, (31, 31), 4, self.potentials, borderType=cv2.BORDER_CONSTANT)
             np.maximum(self.potentials, 0, self.potentials)
+
+    def neighbours(self, point):
+        """Return list of neighbour cells. 8 neighbours"""
+        x, y = point
+        ret = list()
+        if x > 0:
+            if y > 0:
+                ret.append((x-1, y-1))
+            ret.append((x-1, y))
+            if y < H-1:
+                ret.append((x-1, y+1))
+        if y > 0:
+            ret.append((x, y-1))
+        if y < H-1:
+            ret.append((x, y+1))
+        if x < W-1:
+            if y > 0:
+                ret.append((x+1, y-1))
+            ret.append((x+1, y))
+            if y < H-1:
+                ret.append((x+1, y+1))
+        return ret
+
+    def create_path(self, start, end):
+        from math import sqrt
+        pq = SortedList(lambda x: -x[0])  # Priority Queue, with priority as the first element of entries
+        parents = dict()
+        parents[start] = None
+        dist = dict()
+        dist[start] = 0
+        # The cost function is straight-line distance + needed climb.
+        def costfunc(point, other):
+            pot = max(self.potentials[other] - self.potentials[point], 0)
+            dist = 1. if point[0] == other[0] or point[1] == other[1] else 1.414
+            return pot + dist
+        # The heuristic is straight-line distance plus needed climb
+        def heuristic(point):
+            pot = max(self.potentials[end] - self.potentials[point], 0)
+            dist = sqrt((end[0] - point[0]) ** 2 + (end[1] - point[1]) ** 2)
+            return pot + dist
+        heuristic = lambda point: sqrt((end[0] - point[0])**2 + (end[1] - point[1])**2) + costfunc(point, end) - 1
+        pq.add((heuristic(start), start, None))
+        while True:
+            try:
+                est_u, u, p = pq.pop()
+                parents[u] = p
+            except IndexError:
+                print('No path found.')
+                u = None
+                break
+            if u == end:
+                break
+
+            for v in self.neighbours(u):
+                new_dist = dist[u] + costfunc[u, v]
+                if v not in dist or new_dist < dist[v]:
+                    dist[v] = new_dist
+                    est_v = new_dist + heuristic(v)
+                    pq.add((est_v, v, u))
+        path = []
+        while u is not None:
+            path.append(u)
+            u = parents[u]
+        path = path.reverse()
+        return path
+
+    def draw_path(self, path):
+        path = np.array(path)
+        path = path.T
+        img = np.frombuffer(self.gui.im_array, np.uint8).reshape((H,W,3))
+        img[path] = [255, 255, 200]
 
     def draw_houses(self):
         frame = np.frombuffer(self.gui.im_array.get_obj(), np.uint8, H * W * 3).reshape((H, W, 3))
