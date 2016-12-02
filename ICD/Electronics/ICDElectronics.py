@@ -2,6 +2,12 @@ import serial
 import time
 import threading
 import re
+import MagicalConstants
+
+'''
+    Important notes:
+    Every function, that has a parameter for robotID, takes in a NON-REMAPPED ID value! ( except for getRemappedIDs() )
+'''
 
 class Interface:
 
@@ -55,8 +61,7 @@ class Interface:
                 a negative speed value moves it downwards (minimum -190)
             :return: nothing
         """
-        # TODO test if it moves in the direction it is supposed to move!
-        self.raw.serialWrite("t3:sd" + speed + "\n")
+        self.raw.serialWrite("t3:sd" + str(speed) + "\n")
 
 
     def meltFishingLine(self, time):
@@ -67,7 +72,6 @@ class Interface:
             * the time scales linearly so 300 would be twice the time
             :return: nothing
         """
-        # TODO test if it actually works!
         self.raw.serialWrite("l1m" + str(time) + "\n")
 
     def driveRobot(self, robotID, speed = 0, arcSize = 0):
@@ -82,11 +86,44 @@ class Interface:
         # TODO this is gonna be awful :)
         # TODO Make a lookup table containing some values for moving in a straight line
         # TODO Implement software breaking on the robots (not in python!)
+
+        leftBoost = 0
+        rightBoost = 0
+        if(arcSize > 0):
+            rightBoost = arcSize
+        else:
+            leftBoost = arcSize * -1
+
+        self.dbg("leftBoost: "  + str(leftBoost) + " rightBoost: " + str(rightBoost))
+
+        if(speed == 0):
+           self.setRobotMotorSpeeds(robotID, 0, 0)
+        elif(robotID == 0):
+            if (speed > 0):
+                # move the robot forward
+                self.setRobotMotorSpeeds(robotID, MagicalConstants.ROBOT_2_MOVE_FORWARD_LEFT_MOTOR_SPEED + leftBoost,
+                                         MagicalConstants.ROBOT_2_MOVE_FORWARD_RIGHT_MOTOR_SPEED + rightBoost)
+            else:
+                # move the robot backward
+                self.setRobotMotorSpeeds(robotID, MagicalConstants.ROBOT_2_MOVE_BACKWARD_LEFT_MOTOR_SPEED - leftBoost,
+                                         MagicalConstants.ROBOT_2_MOVE_BACKWARD_RIGHT_MOTOR_SPEED - rightBoost)
+        elif(robotID == 1):
+            if (speed > 0):
+                # move the robot forward
+                self.setRobotMotorSpeeds(robotID, MagicalConstants.ROBOT_1_MOVE_FORWARD_LEFT_MOTOR_SPEED + leftBoost,
+                                         MagicalConstants.ROBOT_1_MOVE_FORWARD_RIGHT_MOTOR_SPEED + rightBoost)
+            else:
+                # move the robot backward
+                self.setRobotMotorSpeeds(robotID, MagicalConstants.ROBOT_1_MOVE_BACKWARD_LEFT_MOTOR_SPEED - leftBoost,
+                                         MagicalConstants.ROBOT_1_MOVE_BACKWARD_RIGHT_MOTOR_SPEED - rightBoost)
+        else:
+            self.dbg("Unknown robot ID entered to driveRobot(): " + str(robotID))
+
         self.dbg("Liigutaks maapealset autot, aga see pole veel implementeeritud :(")
 
         #self.raw.serialWrite("")
 
-    def rotateRobot(self, robotID, amount):
+    def rotateRobot(self, robotID, amount, shouldMoveForward = 0):
         """
         This function is needed if precise turning of a robot is needed. While it is not accurate
         (500 will not turn the robot the same amount each time it is used), it is still the only
@@ -101,19 +138,75 @@ class Interface:
                 positive clockwise. NB! This value does not scale linearly!!!
         :return: nothing
         """
-        # TODO make sure that it actually works the way expected
+
+        # TODO ##################################################################################
+        # TODO Maybe make a look-up table and then pick the values from there in order to turn  #
+        # TODO both ways the same amount.                                                       #
+        # TODO Still, as it won't most probably scale linearly, it could be quite pointless ... #
+        # TODO ##################################################################################
+
+        speedWhileTurning = 2000
+        if(shouldMoveForward != 0):
+            speedWhileTurning *= -1
+            amount *= -1
+
         # map input ID of [0 to 1] and [1 to 2]
-        id = 2 #default ID
-        if (robotID == 0):
-            id = 1
+        id = self.getRemappedRobotIDs(robotID)
 
         if (robotID == 0 or robotID == 1):
-            cmd = "l" + str(id) + "r" + str(amount) + "\n"
+            if(amount < 0):
+                amount *= -1
+                self.setMotorBuffers(id, 0, speedWhileTurning * -1)
+            else:
+                self.setMotorBuffers(id, speedWhileTurning * -1, 0)
+            cmd = "l" + str(id) + "t" + str(amount) + "\n"
             self.raw.serialWrite(cmd)
             self.dbg("Sent: " + cmd)
         else:
             self.dbg("Unknown ID entered to rotateRobot(): " + str(robotID))
 
+    """
+        Sets the motor speeds of the robot indicated by ID (not remapped)
+    """
+    def setRobotMotorSpeeds(self, robotID, l, r):
+        self.setMotorBuffers(robotID, l, r)
+        self.raw.serialWrite("l" + str(self.getRemappedRobotIDs(robotID)) + "s\n")
+
+    """
+        Sets the motor buffers of the robot according to the motor placement and stuff like that.
+        It then sends those values to the robot. NB! It does not start any action (moving, rotating, etc.)
+    """
+    def setMotorBuffers(self, robotID, left, right):
+        id = self.getRemappedRobotIDs(robotID)
+        cmd = ""
+        if(id == 1):
+            #this is the BLUE robot that isn't under the robot with the NUC
+            print("###FIRST")
+            cmd += "l" + str(id) + "l" + str(-right) + "\n"
+            cmd += "l" + str(id) + "r" + str(left) + "\n"
+        else:
+            print("###SECOND")
+            # this is the ORANGE robot near the NUC, because the ID is already REMAPPED!!!
+            cmd += "l" + str(id) + "l" + str(right) + "\n" #because fuck logic :)
+            cmd += "l" + str(id) + "r" + str(-left) + "\n"
+        print("id: " + str(robotID) + " sent: " + cmd.replace("\n", "[\\n]"))
+        self.raw.serialWrite(cmd)
+
+    """
+        As the elctronics programs use different IDs, these must be converted.
+        This function converts the main code IDs to the electronics equivalents
+    """
+    def getRemappedRobotIDs(self, robotID):
+        # map input ID of [0 to 2] and [1 to 1]
+        if (robotID == 0):
+            print("0 TO 2")
+            return 2
+        elif(robotID == 1):
+            print("1 TO 1")
+            return 1
+        else:
+            self.dbg("Invalid robotID entered to getRemappedMotorIDs(). It was " + str(robotID))
+            return 1 # the default value
 
 class RawElectronics:
 
@@ -124,7 +217,6 @@ class RawElectronics:
 
     def isConnectionActive(self):
         return ser.isOpen()
-
 
     def serialWrite(self, command):
         if self.isConnectionActive():
@@ -144,13 +236,13 @@ class RawElectronics:
         print("ELECTRONICS MAINLOOP HAS STOPPED!")
 
     def __del__(self):
-        self.closeConnectoin()
+        self.closeConnection()
 
     def closeConnection(self):
         if self.isConnectionActive():
             self.dbg("closing connections ...")
             self.serialWrite("9:led9\n")
-            ser.close();
+            ser.close()
             self.dbg("Closed!")
 
 
