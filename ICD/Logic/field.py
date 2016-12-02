@@ -8,6 +8,10 @@ import cv2
 D = 4 # Distance between a new house and any old house in centimeters for it to be considered a separate house.
 H = 90  # Height and width of the field in cm, with (0,0) in the upper left-hand corner
 W = 150
+HOUSE_KERNEL = cv2.getGaussianKernel((40, 40), 6, np.float) # type: np.ndarray
+R_WEIGHT = 10 # Don't want the path to go there, like, at all
+G_WEIGHT = -2 # To reduce the cost for approaching green houses near red ones, and knock over any on the way.
+D_WEIGHT = 2 # Avoid if possible.
 
 class FieldGUI(object):
 
@@ -60,6 +64,7 @@ class Field(mp.Process):
         self.houseupdates = ValueSortedDict()  # Essentially a priority queue with more functionality
         self.update_idx = 0
         self.next_new_house = 0
+        self.potentials = np.zeros((H, W), dtype = float)
         self.que =  mp.Queue(4)
         self.start()
 
@@ -115,15 +120,31 @@ class Field(mp.Process):
             self.xes[to_change] = house.center.coords()[0]
             self.houses[to_change] = house
             self.houseupdates[to_change] = self.update_idx
-
         # if not self.update_idx % 5:
         self.clean_houses()
+        self.update_potentials()
         if self.gui.enabled:
             self.draw_houses()
 
+    def update_potentials(self):
+        self.potentials = np.zeros(H, W)
+        for house in self.houses.values(): # type: House
+            if house.color == House.RED:
+                weight = R_WEIGHT
+            elif house.color == House.GREEN:
+                weight = G_WEIGHT
+            else:
+                weight = D_WEIGHT
+            x, y = house.center.coords()
+            self.potentials[y-2:y+2, x-2:x+2] = weight
+            cv2.GaussianBlur(self.potentials, (40, 40), 6, self.potentials)
+
+
+
+
     def draw_houses(self):
         frame = np.frombuffer(self.gui.im_array.get_obj(), np.uint8, H * W * 3).reshape((H, W, 3))
-        frame.fill(255)
+        cv2.convertScaleAbs(self.potentials, frame, 10, 127)
         for house in self.houses.values():
             x, y = house.center.coords()
             xl, yl = max(x - 2, 0), max(y - 2, 0)
