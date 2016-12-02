@@ -1,9 +1,8 @@
 import cv2
-from cv2 import aruco
 import cam_params
 import numpy as np
 from ICD.common import *
-from aruco import ht
+from aruco import arudict
 
 
 class DynamicProcessor(object):
@@ -14,6 +13,15 @@ class DynamicProcessor(object):
         self.master = master
         self.car = car
         self.board = board
+        self.detparam = cv2.aruco.DetectorParameters_create()
+        self.detparam.minMarkerPerimeterRate = (120 / pixres) / FRAME_W
+        self.detparam.maxMarkerPerimeterRate = (240 / pixres) / FRAME_W
+        self.detparam.minCornerDistanceRate = 0.15
+        self.detparam.minMarkerDistanceRate = 0.03
+        self.detparam.polygonalApproxAccuracyRate = 0.05
+        # self.detparam.doCornerRefinement = True
+        self.detparam.cornerRefinementWinSize = 2
+        self.detparam.perspectiveRemovePixelPerCell = 10
 
     def car_to_field(self, rvec, tvec):
         """Transform the car's location and direction to field coordinates, shift to field plane.
@@ -24,17 +32,20 @@ class DynamicProcessor(object):
         """
         cam_mat = cam_params.logitech_matrix
         cam_dist = cam_params.logitech_dist_coeffs
-        mat = np.frombuffer(self.field.perspective_matrix.get_obj())
+        mat = np.frombuffer(self.master.perspective_matrix.get_obj()).reshape((3, 3))
         if mat.any():  # If the perspective matrix has already been updated by StaticProcessor
-            obj_points = [[0,0,0], [0,1,0]]
+            obj_points = np.array([[0, 0, 0], [0, 1, 0]], np.float32)
             pic_points, _ = cv2.projectPoints(obj_points, rvec, tvec, cam_mat, cam_dist)
             cx, cy = self.master.center.coords()
-            lens, angles = cv2.cartToPolar(cx - pic_points[:,0], cy - pic_points[:,1])
-            lens *= (1 - 0.085/H_CAM_MM/1000)
+            lens, angles = cv2.cartToPolar(cx - pic_points[:, 0, 0], cy - pic_points[:, 0, 1])
+            lens *= (1 - 85. / H_CAM_MM)
             pic_points = np.array(cv2.polarToCart(lens, angles)).T
+            pic_points = pic_points[0, :, None]  # Cause OpenCV is ...
+            pic_points = np.array((cx, cy)) - pic_points
             field_points = cv2.perspectiveTransform(pic_points, mat)
-            loc = field_points[0]
-            dir = field_points[1] - field_points[0]
+            loc = field_points[0, 0]
+            dir = field_points[1, 0] - field_points[0, 0]
+            cv2.normalize(dir, dir, 70 * pixres, norm_type=2)
             return loc, dir
         else:
             return None, None
@@ -45,12 +56,20 @@ class DynamicProcessor(object):
     def process_frame(self, frame):
         cam_mat = cam_params.logitech_matrix
         cam_dist = cam_params.logitech_dist_coeffs
-        corners, ids, rejected = aruco.detectMarkers(frame, arudict)
-        corners, ids, rejected, recovered = aruco.refineDetectedMarkers(frame, self.board, corners, ids, rejected,
-                                                                        cam_mat, cam_dist)
-        N, rvec, tvec = aruco.estimatePoseBoard(corners, ids, self.board, cam_mat, cam_dist)
+        cv2.setNumThreads(
+            0)  # Python multiprocessing and OpenCV multithreading have trust issues. See https://github.com/opencv/opencv/issues/5150
+        corners, ids, rejected = cv2.aruco.detectMarkers(frame, arudict, parameters=self.detparam)
+        corners, ids, rejected, recovered = cv2.aruco.refineDetectedMarkers(frame, self.board, corners, ids, rejected,
+                                                                            cam_mat, cam_dist,
+                                                                            errorCorrectionRate=-1,
+                                                                            parameters=self.detparam)
+        cv2.setNumThreads(-1)
+        N, rvec, tvec = cv2.aruco.estimatePoseBoard(corners, ids, self.board, cam_mat, cam_dist)
         if N:
+            cv2.aruco.drawAxis(frame, cam_mat, cam_dist, rvec, tvec, 0.4)
+            cv2.aruco.drawDetectedMarkers(frame, corners, ids)
+            cv2.imshow('ARUCO', frame)
             loc, dir = self.car_to_field(rvec, tvec)
             if loc is not None:
                 self.car.update_pos(loc, dir)
-
+        pass

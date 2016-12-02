@@ -45,7 +45,7 @@ class FieldGUI(object):
 
 
 class Field(mp.Process):
-    """Represents the detected playing field and it's contents."""
+    """Represents the detected playing field and it's contents. Also handles path creation."""
 
     def __init__(self, id, car, gui):
         super(Field, self).__init__(target=self.dispatch, name='Field_{}_proc'.format(id))
@@ -77,7 +77,14 @@ class Field(mp.Process):
 
     def reset(self):
         """Invalidate static info."""
-        raise NotImplementedError
+        self.call('_reset')
+
+    def _reset(self):
+        self.houses.clear()
+        self.houseupdates.clear()
+        self.xes.clear()
+        self.update_idx = 0
+        self.next_new_house = 0
 
     def call(self, func, *args, **kwargs):
         self.que.put((func, args, kwargs))  # TODO: Change to put_nowait before the competition

@@ -35,28 +35,34 @@ logitech_dist_coeffs = np.array([2.0806786957819065e-01, -3.6839605435678208e-01
                                  -1.2078578161331370e-02, 6.4294407773653481e-03,
                                  4.2723310854154123e-01])
 
-car_board = aruco.Board_create(objPoints, arudict, np.arange(0, 4))
+car_board0 = aruco.Board_create(objPoints, arudict, np.arange(0, 4))
+car_board1 = aruco.Board_create(objPoints, arudict, np.arange(4, 8))
 
 while True:
     ret, frame = cam.read()
     corners, ids, rejected = aruco.detectMarkers(frame, arudict)
-    corners, ids, rejected, recovered = aruco.refineDetectedMarkers(frame, car_board, corners, ids, rejected,
+    corners, ids, rejected, recovered = aruco.refineDetectedMarkers(frame, car_board0, corners, ids, rejected,
+                                                                    logitech_cam_matrix, logitech_dist_coeffs)
+
+    corners, ids, rejected, recovered = aruco.refineDetectedMarkers(frame, car_board1, corners, ids, rejected,
                                                                     logitech_cam_matrix, logitech_dist_coeffs)
     aruco.drawDetectedMarkers(frame, corners, ids)
     # rvecs, tvecs = aruco.estimatePoseSingleMarkers(corners, sd, camera_matrix, dist_coeffs)
-    N, rvec, tvec = aruco.estimatePoseBoard(corners, ids, car_board, logitech_cam_matrix, logitech_dist_coeffs)
-    if N:
+    N0, rvec0, tvec0 = aruco.estimatePoseBoard(corners, ids, car_board0, logitech_cam_matrix, logitech_dist_coeffs)
+    N1, rvec1, tvec1 = aruco.estimatePoseBoard(corners, ids, car_board1, logitech_cam_matrix, logitech_dist_coeffs)
+    if N0:
         # for i in range(len(ids)):
         #     aruco.drawAxis(frame, camera_matrix, dist_coeffs, rvecs[i], tvecs[i], 0.4)
-        mat, jacob = cv2.Rodrigues(rvec)
+        mat, jacob = cv2.Rodrigues(rvec0)
         dash = np.full((400, 600), 255, dtype=np.uint8)
         putTextMultiline(dash, repr(mat), (20, 20))
-        putTextMultiline(dash, repr(tvec), (400, 200))
-        putTextMultiline(dash, repr(rvec), (20, 200))
+        putTextMultiline(dash, repr(tvec0), (400, 200))
+        putTextMultiline(dash, repr(rvec0), (20, 200))
         cv2.imshow('Dash', dash)
 
-        aruco.drawAxis(frame, logitech_cam_matrix, logitech_dist_coeffs, rvec, tvec, 0.4)
-        cv2.putText(frame, 'N = {}'.format(N), (20, 20), cv2.FONT_HERSHEY_PLAIN, 2, (255, 255, 255))
+        aruco.drawAxis(frame, logitech_cam_matrix, logitech_dist_coeffs, rvec0, tvec0, 0.4)
+    if N1:
+        aruco.drawAxis(frame, logitech_cam_matrix, logitech_dist_coeffs, rvec1, tvec1, 0.4)
     cv2.imshow('blah', frame)
     if cv2.waitKey(1) != -1:
         break

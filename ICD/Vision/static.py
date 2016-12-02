@@ -145,7 +145,6 @@ class StaticProcessor(object):
     def get_corners(self):
         return tuple(self.corners)
 
-
     def toggle_GUI(self):
         if self.calibrate:
             self.calibrate = False
@@ -234,6 +233,7 @@ class StaticProcessor(object):
             # self.proc = mp.Process(target=self.tester, args=(self.accumulator,))
             self.proc.daemon = True
             self.proc.start()
+            cv2.setNumThreads(-1)
 
     def accumulate_static(self, frame):
         """Accumulate frames for averaging for static analysis of the playing field.
@@ -280,12 +280,13 @@ class StaticProcessor(object):
         try:
             houses = np.append(g_houses, r_houses, axis=0)
         except ValueError:
-            if g_houses.any():
+            if g_houses is not None:
                 houses = g_houses
             else:
                 houses = r_houses
-        self.perspect(houses)
-        self.field.update_houses(houses.tolist())
+        if houses is not None:
+            self.perspect(houses)
+            self.field.update_houses(houses.tolist())
 
     # def find_field(self, gray):
     #     img = cv2.medianBlur(gray, 3)
@@ -477,8 +478,9 @@ class StaticProcessor(object):
 
     def perspect(self, houses):
         vid_corners = np.array([corner.coords() for corner in self.get_corners()], dtype=np.float32)
-        field_corners = np.array([[0, 0], [150, 0], [150, 90], [0, 90]], dtype=np.float32)
-        mat = np.frombuffer(self.master.perspective_matrix.get_obj())
-        mat[:] = cv2.getPerspectiveTransform(vid_corners, field_corners)
-        houses[:, None, 2:4] = cv2.perspectiveTransform(houses[:, None, 2:4], mat)
-        return houses
+        if vid_corners is not None:
+            field_corners = np.array([[0, 0], [150, 0], [150, 90], [0, 90]], dtype=np.float32)
+            mat = np.frombuffer(self.master.perspective_matrix.get_obj()).reshape((3, 3))
+            mat[:] = cv2.getPerspectiveTransform(vid_corners, field_corners)
+            houses[:, None, 2:4] = cv2.perspectiveTransform(houses[:, None, 2:4], mat)
+            return houses
