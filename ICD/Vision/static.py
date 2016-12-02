@@ -332,22 +332,23 @@ class StaticProcessor(object):
         else:
             print("Corners not detected!")
 
-        if self.calibrate:  # Contour search is destructive, so have to show it here or copy stuff.
+        if self.calibrate:
             self.GUI.img[f_mask > 0] = [255, 255, 255]
             self.GUI.img[f_mask == 0] = [0, 0, 0]
             if calibrate_more:
                 self.GUI.img2[:] = f_mask
-            for line in lines:
-                rho, theta = np.ravel(line)
-                a = np.cos(theta)
-                b = np.sin(theta)
-                x0 = a * rho
-                y0 = b * rho
-                x1 = int(x0 + 1000 * (-b))
-                y1 = int(y0 + 1000 * (a))
-                x2 = int(x0 - 1000 * (-b))
-                y2 = int(y0 - 1000 * (a))
-                cv2.line(self.GUI.img, (x1, y1), (x2, y2), (255, 0, 0), 2)
+            if lines is not None:
+                for line in lines:
+                    rho, theta = np.ravel(line)
+                    a = np.cos(theta)
+                    b = np.sin(theta)
+                    x0 = a * rho
+                    y0 = b * rho
+                    x1 = int(x0 + 1000 * (-b))
+                    y1 = int(y0 + 1000 * (a))
+                    x2 = int(x0 - 1000 * (-b))
+                    y2 = int(y0 - 1000 * (a))
+                    cv2.line(self.GUI.img, (x1, y1), (x2, y2), (255, 0, 0), 2)
 
     def find_houses(self, hsv, green_red):
         """Segment scene by color to find red or green houses.

@@ -50,9 +50,6 @@ class DynamicProcessor(object):
         else:
             return None, None
 
-
-        pass
-
     def process_frame(self, frame):
         cam_mat = cam_params.logitech_matrix
         cam_dist = cam_params.logitech_dist_coeffs
@@ -63,8 +60,8 @@ class DynamicProcessor(object):
                                                                             cam_mat, cam_dist,
                                                                             errorCorrectionRate=-1,
                                                                             parameters=self.detparam)
-        cv2.setNumThreads(-1)
         N, rvec, tvec = cv2.aruco.estimatePoseBoard(corners, ids, self.board, cam_mat, cam_dist)
+        cv2.setNumThreads(-1)
         if N:
             cv2.aruco.drawAxis(frame, cam_mat, cam_dist, rvec, tvec, 0.4)
             cv2.aruco.drawDetectedMarkers(frame, corners, ids)

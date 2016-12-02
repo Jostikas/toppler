@@ -8,10 +8,9 @@ import cv2
 D = 4 # Distance between a new house and any old house in centimeters for it to be considered a separate house.
 H = 90  # Height and width of the field in cm, with (0,0) in the upper left-hand corner
 W = 150
-HOUSE_KERNEL = cv2.getGaussianKernel((40, 40), 6, np.float) # type: np.ndarray
-R_WEIGHT = 10 # Don't want the path to go there, like, at all
-G_WEIGHT = -2 # To reduce the cost for approaching green houses near red ones, and knock over any on the way.
-D_WEIGHT = 2 # Avoid if possible.
+R_WEIGHT = 30  # Don't want the path to go there, like, at all
+G_WEIGHT = -5  # To reduce the cost for approaching green houses near red ones, and knock over any on the way.
+D_WEIGHT = 5  # Avoid if possible.
 
 class FieldGUI(object):
 
@@ -127,7 +126,7 @@ class Field(mp.Process):
             self.draw_houses()
 
     def update_potentials(self):
-        self.potentials = np.zeros(H, W)
+        self.potentials = np.zeros((H, W))
         for house in self.houses.values(): # type: House
             if house.color == House.RED:
                 weight = R_WEIGHT
@@ -136,15 +135,13 @@ class Field(mp.Process):
             else:
                 weight = D_WEIGHT
             x, y = house.center.coords()
-            self.potentials[y-2:y+2, x-2:x+2] = weight
-            cv2.GaussianBlur(self.potentials, (40, 40), 6, self.potentials)
-
-
-
+            self.potentials[int(y - 2 + 0.5):int(y + 2 + 0.5), int(x - 2 + 0.5):int(x + 2 + 0.5)] = weight
+            cv2.GaussianBlur(self.potentials, (31, 31), 4, self.potentials, borderType=cv2.BORDER_CONSTANT)
+            np.maximum(self.potentials, 0, self.potentials)
 
     def draw_houses(self):
         frame = np.frombuffer(self.gui.im_array.get_obj(), np.uint8, H * W * 3).reshape((H, W, 3))
-        cv2.convertScaleAbs(self.potentials, frame, 10, 127)
+        frame[:] = cv2.cvtColor(cv2.convertScaleAbs(self.potentials, alpha=80), cv2.COLOR_GRAY2BGR)
         for house in self.houses.values():
             x, y = house.center.coords()
             xl, yl = max(x - 2, 0), max(y - 2, 0)
@@ -153,7 +150,7 @@ class Field(mp.Process):
                 col = (0, 0, 255)
             elif house.color == House.GREEN:
                 col = (0, 255, 0)
-            frame[yl:yh, xl:xh] = col
+                # frame[yl:yh, xl:xh] = col
 
     def clean_houses(self):
         """Clean up houses that haven't been updated in 5 or more turns."""
