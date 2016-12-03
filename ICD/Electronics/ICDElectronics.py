@@ -208,9 +208,18 @@ class Interface:
             self.dbg("Invalid robotID entered to getRemappedMotorIDs(). It was " + str(robotID))
             return 1 # the default value
 
+    def setStartCallback(self, functionToCall):
+        self.raw.startCallback = functionToCall
+
+    def setStopCallback(self, functionToCall):
+        self.raw.stopCallback = functionToCall
+
+
 class RawElectronics:
 
     ser = 0
+    startCallback = 0
+    stopCallback = 0
 
     def dbg(self, text):
         print("RAW: " + str(text))
@@ -222,7 +231,6 @@ class RawElectronics:
         if self.isConnectionActive():
             ser.write(bytearray(command, "UTF-8"))
 
-
     def pollingMainloop(self):
         self.dbg("polling loop started")
         while self.isConnectionActive():
@@ -230,10 +238,16 @@ class RawElectronics:
             # print("waiting", waiting)
             if waiting > 0:
                 recv = ser.read(waiting).decode("UTF-8")[:-1]
-                self.dbg("got:" + recv)
-                # TODO parse the data
+
+                #self.dbg("got:" + recv)
+                if("<event:1>" in recv):
+                    if(self.startCallback != 0):
+                        self.startCallback()
+                if("<event:0>" in recv):
+                    if(self.stopCallback != 0):
+                        self.stopCallback()
             time.sleep(0.1)
-        print("ELECTRONICS MAINLOOP HAS STOPPED!")
+        self.dbg("ELECTRONICS MAINLOOP HAS STOPPED!")
 
     def __del__(self):
         self.closeConnection()
