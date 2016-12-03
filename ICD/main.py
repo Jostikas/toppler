@@ -10,8 +10,8 @@ from time import time
 
 # import start
 
-cam0 = cv2.VideoCapture(1)
-cam1 = cv2.VideoCapture(0)
+cam0 = cv2.VideoCapture(0)
+cam1 = cv2.VideoCapture(1)
 cam0.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_H)
 cam0.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_W)
 cam1.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_H)

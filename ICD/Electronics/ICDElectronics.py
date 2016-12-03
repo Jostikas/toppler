@@ -29,15 +29,15 @@ class Interface:
         self.raw.closeConnection()
 
     def moveUpperRobot(self, robotID, speed):
-        """
-            moves the upper robots sideways
-            :param robotID: the ID of the robot that is needed to be moved \
-                the robot ID is either 0 (nearer to the starting position) \
-                or 1 (further away from the starting position)
-            :param speed: the speed at which the robot should be moved \
-                a positive speed value moves it away from the starting position \
-                a negative speed value moves it back to its original position
-            :return: nothing
+        """Move the upper robots sideways
+
+        :param robotID: the ID of the robot that is needed to be moved \
+            the robot ID is either 0 (nearer to the starting position) \
+            or 1 (further away from the starting position)
+        :param speed: the speed at which the robot should be moved \
+            a positive speed value moves it away from the starting position \
+            a negative speed value moves it back to its original position
+        :return: nothing
         """
         speedToSet = speed
         id = 2
@@ -263,7 +263,7 @@ class RawElectronics:
 
     def electronics_ui_mainloop(self):
         while self.isConnectionActive():
-            c = input("Sisesta käsk, mis tuleks saata plaadile (q = quit): ")
+            c = input("Sisesta k2sk, mis tuleks saata plaadile (q = quit): ")
             if (c == "s"):
                 c = "l1l0\nl1r0\nl1s\n"
             elif c.startswith("spd"):
@@ -308,7 +308,7 @@ class RawElectronics:
                                 stopbits=serial.STOPBITS_ONE,
                                 bytesize=serial.EIGHTBITS)
             self.serialWrite("9:led18\n")
-            pollthread = threading.Thread(target=self.pollingMainloop, args=(), daemon=True)
+            pollthread = threading.Thread(target=self.pollingMainloop, args=())
             #uithread = threading.Thread(target=electronics_ui_mainloop, args=(), daemon=True)
 
             pollthread.start()
@@ -317,10 +317,10 @@ class RawElectronics:
 
             #_thread.start_new_thread(electronics_polling_mainloop, ())
             #_thread.start_new_thread(electronics_ui_mainloop, ())
-            self.dbg("Ühendus loodud!")
+            self.dbg("Yhendus loodud!")
             return ser.isOpen()
         except:
-            self.dbg("Ei saanud elektroonikaga ühendust! ")
+            self.dbg("Ei saanud elektroonikaga yhendust! ")
             raise
 
         return False

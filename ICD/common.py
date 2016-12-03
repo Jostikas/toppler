@@ -4,6 +4,9 @@ from functools import total_ordering
 import multiprocessing as mp
 import multiprocessing.sharedctypes as sct
 
+CAM0 = 0
+CAM1 = 1
+PORT = "/dev/ttyACM0"
 FRAME_W = 800
 FRAME_H = 448
 FPS = 30
