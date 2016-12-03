@@ -127,10 +127,6 @@ class FrameProcessor(object):
         else:
             shift = 1  # Assume that the field is further ahead.
 
-
-
-
-
     def get_houghline_direction(self, frame, line):
         """Calculate the direction of the hough line.
 
@@ -144,16 +140,3 @@ class FrameProcessor(object):
         total = np.sum(mask * frame)
         weight = total*1. /  180000
         return weight
-
-
-
-
-
-
-
-
-
-
-
-
-

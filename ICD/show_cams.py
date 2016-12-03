@@ -1,7 +1,4 @@
 import cv2
-from Logic.robot import Robot
-from Electronics.ICDElectronics import Interface
-from time import sleep
 from common import FRAME_H, FRAME_W, FPS
 
 cam0 = cv2.VideoCapture(1)
@@ -17,13 +14,16 @@ cam1.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_W)
 cam0.set(cv2.CAP_PROP_FPS, FPS)
 cam1.set(cv2.CAP_PROP_FPS, FPS)
 
-electronics = Interface('port')
+cv2.namedWindow('CAM0', True)
+cv2.namedWindow('CAM1', True)
 
-robot0 = Robot(0, cam0, electronics)
-robot1 = Robot(1, cam1, electronics)
+cv2.moveWindow('CAM0', 0, 0)
+cv2.moveWindow('CAM1', 900, 0)
 
 while True:
-    sleep(1)
-    if not (robot0.isAlive() or robot1.isAlive()):
+    ret, frame0 = cam0.read()
+    ret, frame1 = cam1.read()
+    cv2.imshow('CAM0', frame0)
+    cv2.imshow('CAM1', frame1)
+    if cv2.waitKey(1) != -1:
         break
-print('Done.')

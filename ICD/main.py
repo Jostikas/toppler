@@ -14,8 +14,11 @@ cam0 = cv2.VideoCapture(1)
 cam1 = cv2.VideoCapture(0)
 cam0.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_H)
 cam0.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_W)
+cam1.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_H)
+cam1.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_W)
 
 cam0.set(cv2.CAP_PROP_FPS, FPS)
+cam1.set(cv2.CAP_PROP_FPS, FPS)
 
 cv2.namedWindow('Main', True)
 mainpic = np.full((300,300), 255, dtype=np.uint8)
