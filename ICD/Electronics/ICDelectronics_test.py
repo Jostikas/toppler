@@ -4,12 +4,17 @@ import time
 # Create a new electronics interface object
 electronics = ICDElectronics.Interface("COM4")
 
-def test():
-    print("Well hello world")
+def start():
+    print("Start Command received!")
 
-electronics.raw.setStartCallback(test)
+def stop():
+    print("Stop Command received!")
 
-#time.sleep(10)
+
+electronics.setStartCallback(start)
+electronics.setStopCallback(stop)
+
+time.sleep(10)
 
 '''
 # move upper robot with ID 1 towards the starting area with a speed of 8
