@@ -68,10 +68,14 @@ class Robot(th.Thread):
     def blind(self, _):
         """State taxis the motherships blindly."""
         done = False
+        if self.idx == 0:
+            done = True
+        else:
+
         return done
 
     def taxi(self, frame):
-        """State handles transporting the robot to the field."""
+        """State handles transporting the robot to the field using feedback."""
         done = False
         field_pos = self.vision.field_pos(frame)
 

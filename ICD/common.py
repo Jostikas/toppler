@@ -158,3 +158,16 @@ def cyclicInRange(src, lowerb, upperb):
 def putTextMultiline(img, text, org, color=0):
     for n, line in enumerate(text.splitlines()):
         cv2.putText(img, line, (org[0], org[1] + (n + 1) * 20), cv2.FONT_HERSHEY_PLAIN, 1, color)
+
+def draw_houghline(img, line, color = 0, thickness=2):
+    rho, theta = np.ravel(line)
+    a = np.cos(theta)
+    b = np.sin(theta)
+    x0 = a * rho
+    y0 = b * rho
+    x1 = int(x0 + 1000 * (-b))
+    y1 = int(y0 + 1000 * (a))
+    x2 = int(x0 - 1000 * (-b))
+    y2 = int(y0 - 1000 * (a))
+    cv2.line(img, (x1, y1), (x2, y2), color, thickness)
+
