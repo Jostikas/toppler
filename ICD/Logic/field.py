@@ -6,13 +6,19 @@ import Queue
 import numpy as np
 import cv2
 
+
+def gaussian(x, mu, sig):
+    return np.exp(-((x - mu) ** 2) / (2 * sig * sig)) / np.sqrt(2 * sig * sig * np.pi)
+
 D = 4 # Distance between a new house and any old house in centimeters for it to be considered a separate house.
 H = 90  # Height and width of the field in cm, with (0,0) in the upper left-hand corner
 W = 150
-R_WEIGHT = 3500  # Don't want the path to go there, like, at all
-G_WEIGHT = -0  # To reduce the cost for approaching green houses near red ones, and knock over any on the way.
-D_WEIGHT = 500  # Avoid if possible.
 K_SIZE = 41
+SIGMA = 3.5
+scale = gaussian(0, 0, SIGMA)
+R_WEIGHT = 350 / scale  # Don't want the path to go there, like, at all
+G_WEIGHT = 0 / scale  # To reduce the cost for approaching green houses near red ones, and knock over any on the way.
+D_WEIGHT = 50 / scale  # Avoid if possible.
 
 class FieldGUI(object):
 
@@ -131,7 +137,7 @@ class Field(mp.Process):
 
 
     def update_potentials(self):
-        self.potentials = np.zeros((H, W))
+        self.potentials = np.zeros((H, W), np.float32)
         for house in self.houses.values(): # type: House
             if house.color == House.RED:
                 weight = R_WEIGHT
@@ -141,7 +147,7 @@ class Field(mp.Process):
                 weight = D_WEIGHT
             x, y = house.center.coords()
             self.potentials[int(y - 2 + 0.5):int(y + 2 + 0.5), int(x - 2 + 0.5):int(x + 2 + 0.5)] = weight
-            cv2.GaussianBlur(self.potentials, (K_SIZE, K_SIZE), 3, self.potentials, borderType=cv2.BORDER_CONSTANT)
+            cv2.GaussianBlur(self.potentials, (K_SIZE, K_SIZE), SIGMA, self.potentials, borderType=cv2.BORDER_CONSTANT)
             np.maximum(self.potentials, 0, self.potentials)
 
     def neighbours(self, point):
@@ -192,9 +198,9 @@ class Field(mp.Process):
         # The heuristic is straight-line distance plus needed climb
         def heuristic(point):
             pot = max(self.potentials[end] - self.potentials[point], 0)
+            # pot = 0  # Might cause problems where it prefers to go around green houses when green houses have negative weight.
             dist = sqrt((end[0] - point[0]) ** 2 + (end[1] - point[1]) ** 2)
             return pot + dist
-        heuristic = lambda point: sqrt((end[0] - point[0])**2 + (end[1] - point[1])**2) + costfunc(point, end) - 1
         pq.add((heuristic(start), start, None))
         while True:
             try:

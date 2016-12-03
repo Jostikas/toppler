@@ -8,7 +8,10 @@ import numpy as np
 from Vision.common import RAvg
 from time import time
 
+# import start
+
 cam0 = cv2.VideoCapture(1)
+cam1 = cv2.VideoCapture(0)
 cam0.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_H)
 cam0.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_W)
 
@@ -36,6 +39,11 @@ car0 = Car(field0_gui)
 field0 = Field(0, car0, field0_gui)
 fproc0 = FrameProcessor((FRAME_H, FRAME_W, 3), field0, car0, 0)
 
+field1_gui = FieldGUI(1)
+car1 = Car(field1_gui)
+field1 = Field(1, car1, field1_gui)
+fproc1 = FrameProcessor((FRAME_H, FRAME_W, 3), field1, car1, 1)
+
 dispatch = {'1': fproc0.static.toggle_GUI,
             'f': lambda: field0_gui.toggle(),
             'r': lambda: fproc0.toggle_screen('raw'),
@@ -62,6 +70,9 @@ dispatch = {'1': fproc0.static.toggle_GUI,
 # for i in range(10):
 #     ret, frame = cam.read()
 # profile()
+
+# start.taxi(cam0, cam1, field1, fproc1)  # field is needed to find a free spot for the car.
+
 
 while True:
     flag, frame = cam0.read()

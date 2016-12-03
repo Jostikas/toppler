@@ -66,3 +66,4 @@ class FrameProcessor(object):
         self.dynamic.process_frame(frame)
         self.update_screens(frame)
 
+    def
